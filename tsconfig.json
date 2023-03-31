@@ -1,0 +1,9 @@
+{
+  "extends": "@tryhackme/tooling-config/tsconfig",
+  "compilerOptions": {
+    "noEmit": true,
+  },
+  "include": [
+    "./src"
+  ]
+}
