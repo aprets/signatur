@@ -9,33 +9,17 @@ GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.js', import
 const signatureImg = new Image();
 signatureImg.src = signatureUrl;
 
-const getCanvasCoordinates = (canvas: HTMLCanvasElement, event: React.MouseEvent<HTMLCanvasElement, MouseEvent>) => {
-  const rect = canvas.getBoundingClientRect();
-  return {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top,
-  };
-};
+interface DrawOptions {
+  canvas: HTMLCanvasElement;
+  baseImage: HTMLImageElement;
+  signatureHeight: number;
+  signedLocations: { x: number; y: number }[];
+}
 
-export const draw = (
-  mouseEvent: React.MouseEvent<HTMLCanvasElement, MouseEvent> | null,
-  renderedPdfImage: HTMLImageElement,
-  signatureHeight: number,
-  signedLocations: { x: number; y: number }[],
-  canvasElement?: HTMLCanvasElement,
-) => {
-  let canvas: HTMLCanvasElement;
-  if (mouseEvent) {
-    canvas = mouseEvent.currentTarget;
-  } else if (canvasElement) {
-    canvas = canvasElement;
-  } else {
-    throw new Error('No canvas element specified');
-  }
-
+export const draw = ({ canvas, baseImage, signatureHeight, signedLocations }: DrawOptions) => {
   const context = canvas.getContext('2d');
   if (!context) return;
-  context.drawImage(renderedPdfImage, 0, 0);
+  context.drawImage(baseImage, 0, 0);
   const signAtLocation = (x: number, y: number) => {
     context.drawImage(
       signatureImg,
@@ -46,56 +30,54 @@ export const draw = (
     );
   };
   for (const { x, y } of signedLocations) signAtLocation(x, y);
-  if (mouseEvent && mouseEvent.type === 'mousemove') {
-    const coordinates = getCanvasCoordinates(canvas, mouseEvent);
-    signAtLocation(coordinates.x, coordinates.y);
-  }
+};
+
+const mouseEventToCanvasCoordinates = (event: React.MouseEvent<HTMLCanvasElement, MouseEvent>) => {
+  const canvas = event.target as HTMLCanvasElement;
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  };
 };
 
 interface SignedLocation {
-  pageIndex: number;
   x: number;
   y: number;
 }
+interface GlobalSignedLocation extends SignedLocation {
+  pageIndex: number;
+}
 
 const Canvas = ({
-  image,
-  signedLocations,
-  setSignedLocations,
-  index,
-  canvasArray,
+  registerCanvas,
+  drawOnCanvas,
+  signOnPage,
 }: {
-  image: HTMLImageElement;
-  signedLocations: { x: number; y: number }[];
-  setSignedLocations: React.Dispatch<React.SetStateAction<SignedLocation[]>>;
-  index: number;
-  canvasArray: React.MutableRefObject<HTMLCanvasElement[]>;
+  registerCanvas: (canvas: HTMLCanvasElement) => void;
+  drawOnCanvas: (canvas: HTMLCanvasElement, extraSignLocation?: SignedLocation) => void;
+  signOnPage: (signLocation: SignedLocation) => void;
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    if (!canvasRef.current) return;
-    // eslint-disable-next-line no-param-reassign
-    canvasArray.current[index] = canvasRef.current;
-    canvasRef.current.width = image.width;
-    canvasRef.current.height = image.height;
-    draw(null, image, 200, [], canvasRef.current);
+    if (canvasRef.current) registerCanvas(canvasRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    if (canvasRef.current) drawOnCanvas(canvasRef.current);
+  });
   return (
     <canvas
       ref={canvasRef}
-      onMouseMove={(e) => draw(e, image, 200, signedLocations)}
-      onMouseLeave={(e) => draw(e, image, 200, signedLocations)}
-      onMouseUp={(e) => {
-        const canvas = e.target as HTMLCanvasElement;
-        setSignedLocations((s) => [...s, { pageIndex: index, ...getCanvasCoordinates(canvas, e) }]);
-      }}
+      onMouseMove={(e) => drawOnCanvas(e.target as HTMLCanvasElement, mouseEventToCanvasCoordinates(e))}
+      onMouseLeave={(e) => drawOnCanvas(e.target as HTMLCanvasElement)}
+      onMouseUp={(e) => signOnPage(mouseEventToCanvasCoordinates(e))}
     />
   );
 };
 
 const App = () => {
-  const [signedLocations, setSignedLocations] = useState<SignedLocation[]>([]);
+  const [signedLocations, setSignedLocations] = useState<GlobalSignedLocation[]>([]);
   const canvasArray = useRef<HTMLCanvasElement[]>([]);
 
   const { parsedPdf, pdfInputOnChange } = useParsePdf();
@@ -116,11 +98,25 @@ const App = () => {
               <Canvas
                 // eslint-disable-next-line react/no-array-index-key
                 key={`${parsedPdf.parsedAtStr}-${index}`}
-                index={index}
-                image={image}
-                signedLocations={signedLocations.filter((s) => s.pageIndex === index)}
-                setSignedLocations={setSignedLocations}
-                canvasArray={canvasArray}
+                registerCanvas={(canvas) => {
+                  // eslint-disable-next-line no-param-reassign
+                  canvas.height = image.height;
+                  // eslint-disable-next-line no-param-reassign
+                  canvas.width = image.width;
+                  canvasArray.current[index] = canvas;
+                }}
+                drawOnCanvas={(canvas, extraSignLocation) => {
+                  draw({
+                    canvas,
+                    baseImage: image,
+                    signatureHeight: 200,
+                    signedLocations: [
+                      ...signedLocations.filter((s) => s.pageIndex === index),
+                      ...(extraSignLocation ? [{ ...extraSignLocation, pageIndex: index }] : []),
+                    ],
+                  });
+                }}
+                signOnPage={(signLocation) => setSignedLocations((s) => [...s, { ...signLocation, pageIndex: index }])}
               />
             ))}
           </div>
@@ -139,20 +135,7 @@ const App = () => {
           disabled={parsedPdf === null || signedLocations.length === 0}
           onClick={() => {
             if (parsedPdf === null) return;
-            const lastSignedLocation = signedLocations[signedLocations.length - 1];
-            if (!lastSignedLocation) return;
-            const image = parsedPdf.images[lastSignedLocation.pageIndex];
-            if (!image) return;
-            const canvas = canvasArray.current[lastSignedLocation.pageIndex];
-            if (!canvas) return;
             setSignedLocations((s) => s.slice(0, -1));
-            draw(
-              null,
-              image,
-              200,
-              signedLocations.slice(0, -1).filter((s) => s.pageIndex === lastSignedLocation.pageIndex),
-              canvas,
-            );
           }}
         >
           Undo
@@ -164,10 +147,6 @@ const App = () => {
           onClick={() => {
             if (parsedPdf === null) return;
             setSignedLocations([]);
-            for (const [index, canvas] of canvasArray.current.entries()) {
-              const image = parsedPdf.images[index];
-              if (canvas && image) draw(null, image, 200, [], canvas);
-            }
           }}
         >
           Reset
