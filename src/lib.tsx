@@ -18,7 +18,6 @@ export const renderPdfToImgs = async (pdfFile: Blob) => {
     reader.onerror = reject;
     reader.readAsArrayBuffer(pdfFile);
   });
-  // const  new Uint8Array(arrayBuffer);
   const pdf = await getDocument(arrayBuffer).promise;
   const pageNums = Array.from({ length: pdf.numPages }, (_, i) => i + 1);
   const imagePromises = pageNums.map(async (pageNum) => {
@@ -42,10 +41,12 @@ export const renderPdfToImgs = async (pdfFile: Blob) => {
         else reject(new Error('Failed to save canvas to blob'));
       });
     });
+    canvas.remove();
     const url = URL.createObjectURL(imageBlob);
     const img = new Image();
     img.src = url;
     await img.decode();
+
     return img;
   });
   return Promise.all(imagePromises);
@@ -53,7 +54,10 @@ export const renderPdfToImgs = async (pdfFile: Blob) => {
 
 export const useParsePdf = () => {
   const renderInProgressRef = useRef(false);
-  const [pdfImages, setPdfImages] = useState<HTMLImageElement[] | null>(null);
+  const [parsedPdf, setParsedPdf] = useState<{
+    images: HTMLImageElement[];
+    parsedAtStr: string;
+  } | null>(null);
 
   const pdfInputOnChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -64,12 +68,15 @@ export const useParsePdf = () => {
       return;
     }
     renderInProgressRef.current = true;
-    setPdfImages(await renderPdfToImgs(file));
+    setParsedPdf({
+      images: await renderPdfToImgs(file),
+      parsedAtStr: new Date().toISOString(),
+    });
     renderInProgressRef.current = false;
   };
 
   return {
-    pdfImages,
+    parsedPdf,
     pdfInputOnChange,
   };
 };
