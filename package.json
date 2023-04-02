@@ -1,12 +1,13 @@
 {
   "name": "signatur",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@heroicons/react": "^2.0.17",
     "@types/react-modal": "^3.13.1",
     "jspdf": "^2.5.1",
     "pdfjs": "^2.4.7",

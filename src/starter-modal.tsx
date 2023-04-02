@@ -56,7 +56,7 @@ const ImageSelectionSection = ({
         <h2 className="mb-1 text-lg font-semibold text-slate-800">{title}</h2>
         <p className="mb-2 text-slate-800">{description}</p>
       </label>
-      <div className="flex relative mb-3 items-start">
+      <div className="relative mb-3 flex items-start">
         <div className="flex h-5 items-center">
           <input
             id={`${name}-save-checkbox`}
@@ -119,7 +119,7 @@ const StarterModal = ({
     onRequestClose={closeModal}
     contentLabel="Welcome Modal"
     overlayClassName="fixed inset-0 bg-slate-800 bg-opacity-75 transition-opacity duration-500 opacity-0"
-    className="absolute left-1/2 top-1/2 w-[90vw] -translate-x-1/2 -translate-y-1/2 transform overflow-auto rounded-lg bg-white p-8 shadow-lg outline-none lg:w-[700px]"
+    className="absolute left-1/2 top-1/2 max-h-[95vh] w-[90vw] -translate-x-1/2 -translate-y-1/2 transform overflow-auto rounded-lg bg-white p-8 shadow-lg outline-none lg:w-auto "
     closeTimeoutMS={500}
   >
     <h1 className="mb-4 text-4xl font-bold text-slate-800">Welcome! 🖋️</h1>
@@ -167,7 +167,7 @@ const StarterModal = ({
       setter={setInitials}
       loadSavedImages={!canProceed}
     />
-    <div className="flex mt-8 justify-center">
+    <div className="mt-8 flex justify-center">
       <button
         type="button"
         disabled={!canProceed}
