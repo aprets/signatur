@@ -100,7 +100,7 @@ const App = () => {
   const { parsedPdf, pdfInputOnChange } = useParsePdf();
   useEffect(() => {
     if (parsedPdf === null) return;
-    canvasArray.current = Array.from({ length: parsedPdf.images.length });
+    canvasArray.current.length = parsedPdf.images.length;
     setSignedLocations([]);
   }, [parsedPdf]);
 
@@ -222,7 +222,7 @@ const App = () => {
           </div>
           <div className="flex w-1/3 min-w-fit items-center justify-end gap-4">
             <button
-              className={`rounded px-2 py-2 font-bold text-white ${
+              className={`flex justify-center gap-1 rounded px-2 py-2 font-bold text-white ${
                 parsedPdf
                   ? isSavingPdf
                     ? 'bg-violet-500/90'
@@ -251,7 +251,7 @@ const App = () => {
                 }, 0);
               }}
             >
-              {isSavingPdf && <Loader className="mr-2 inline h-5 w-5 animate-spin text-white" />}{' '}
+              {isSavingPdf && <Loader className="h-5 w-5 animate-spin text-white" />}
               <ArrowDownTrayIcon className="h-6 w-6" />
             </button>
           </div>
