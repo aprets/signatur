@@ -132,11 +132,18 @@ const StarterModal = ({
       <br />
       To get started, select your signatures and initials below.
     </p>
-    <p className="mb-4 text-slate-600">
+    <p className="mb-1 text-slate-600">
       -{' '}
       <a href="https://aprets.me" className="underline">
         aprets
       </a>
+    </p>
+    <p className="mb-4 text-xs text-slate-600">
+      (You can also check out the source code on{' '}
+      <a href="https://github.com/aprets/signatur" className="underline">
+        GitHub
+      </a>
+      )
     </p>
     <ImageSelectionSection
       className="mb-8"
