@@ -114,7 +114,7 @@ const App = () => {
         setInitials={setInitials}
       />
       <main className="flex h-screen flex-col">
-        <div className="flex flex-shrink-0 items-center justify-between gap-4 overflow-x-scroll border-b border-solid px-2 py-2">
+        <div className="flex flex-shrink-0 items-center justify-between gap-4 overflow-x-auto border-b border-solid px-2 py-2">
           <div className="flex w-1/3 min-w-fit items-center gap-4">
             <button
               type="button"
@@ -268,7 +268,7 @@ const App = () => {
             {parsedPdf ? 'Now click to sign' : 'Select a file to sign'}
           </label>
         </div>
-        <div className="flex flex-grow justify-center overflow-scroll bg-slate-100">
+        <div className="flex flex-grow justify-center overflow-auto bg-slate-100">
           {parsedPdf === null ? (
             <p className="flex select-none flex-col justify-center text-slate-500">No document selected</p>
           ) : (
