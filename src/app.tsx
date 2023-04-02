@@ -1,21 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import { jsPDF } from 'jspdf';
 import {
   ArrowDownTrayIcon,
-  ArrowLeftIcon,
-  ArrowSmallLeftIcon,
   ArrowUturnLeftIcon,
-  BackwardIcon,
   Cog8ToothIcon,
   DocumentTextIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import { shuffle, useParsePdf } from './lib';
+import { useParsePdf } from './lib';
 import StarterModal from './starter-modal';
 import Loader from './loader';
-
-GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.js', import.meta.url).toString();
 
 interface DrawOptions {
   canvas: HTMLCanvasElement;
@@ -31,6 +25,7 @@ export const draw = ({ canvas, baseImage, signatureImgArray, initialImgArray, si
   context.drawImage(baseImage, 0, 0);
   for (const { x, y, i, height, type } of signedLocations) {
     const signImgArray = type === 'signature' ? signatureImgArray : initialImgArray;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const signImg = signImgArray[i % signImgArray.length]!;
     context.drawImage(
       signImg,
