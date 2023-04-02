@@ -1,5 +1,5 @@
 {
-  "extends": "@tryhackme/tooling-config/tsconfig",
+  "extends": "@aprets/config/tsconfig",
   "compilerOptions": {
     "noEmit": true,
   },
