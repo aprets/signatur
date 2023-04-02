@@ -11,6 +11,14 @@ module.exports = {
     "@typescript-eslint/no-misused-promises": [
       "error",
       {"checksVoidReturn": {"attributes": false}}
-    ]
+    ],
+    'jsx-a11y/label-has-associated-control': ['error', {
+      labelComponents: [],
+      labelAttributes: [],
+      controlComponents: [],
+      assert: 'either',
+      depth: 25
+    }],
+    '@typescript-eslint/no-use-before-define': 'off',
   }
 };
