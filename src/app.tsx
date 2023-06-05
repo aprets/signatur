@@ -94,6 +94,10 @@ const App = () => {
   const [initials, setInitials] = useState<HTMLImageElement[]>([]);
   const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [signedLocations, setSignedLocations] = useState<GlobalSignedLocation[]>([]);
+  const [nextSignatureOffset, setNextSignatureOffset] = useState<Record<SignType, number>>({
+    signature: 0,
+    initial: 0,
+  });
   const canvasArray = useRef<HTMLCanvasElement[]>([]);
   const [isSavingPdf, setIsSavingPdf] = useState(false);
 
@@ -296,7 +300,7 @@ const App = () => {
                           ? [
                               {
                                 ...extraSignLocation,
-                                i: signedLocations.filter((l) => l.type === signType).length,
+                                i: nextSignatureOffset[signType],
                                 pageIndex: index,
                                 height: signatureHeight,
                                 type: signType,
@@ -306,18 +310,19 @@ const App = () => {
                       ],
                     });
                   }}
-                  signOnPage={(signLocation) =>
+                  signOnPage={(signLocation) => {
                     setSignedLocations((s) => [
                       ...s,
                       {
                         ...signLocation,
-                        i: signedLocations.filter((l) => l.type === signType).length,
+                        i: nextSignatureOffset[signType],
                         pageIndex: index,
                         height: signatureHeight,
                         type: signType,
                       },
-                    ])
-                  }
+                    ]);
+                    setNextSignatureOffset((offset) => ({ ...offset, [signType]: offset[signType] + 1 }));
+                  }}
                 />
               ))}
             </div>
