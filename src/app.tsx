@@ -4,12 +4,17 @@ import {
   ArrowUturnLeftIcon,
   Cog8ToothIcon,
   DocumentTextIcon,
+  ExclamationCircleIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon,
   TrashIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import StarterModal from './starter-modal';
 import Loader from './loader';
 import loadPdfDocument from './pdf/document';
 import saveFlattenedPdf from './pdf/export';
+import type { ExportMode, ExportProgress } from './pdf/export';
 import type { ImagePlacementType, NewPlacement, PdfDocumentState, Placement, PlacementTool } from './pdf/types';
 import PageCanvas from './components/page-canvas';
 
@@ -21,11 +26,32 @@ const MIN_TEXT_SIZE_PT = 6;
 const MAX_TEXT_SIZE_PT = 48;
 const POINTS_PER_MILLIMETER = 72 / 25.4;
 const NO_PLACEMENTS: Placement[] = [];
+const NOTE_DISMISS_MS = 9000;
+const PRINT_DPI = 300;
 const PLACEMENT_TOOLS: { tool: PlacementTool; label: string }[] = [
   { tool: 'signature', label: 'Sign' },
   { tool: 'initial', label: 'Initial' },
   { tool: 'text', label: 'Text' },
 ];
+
+type StatusTone = 'error' | 'warning' | 'note';
+
+interface SaveStatus {
+  tone: StatusTone;
+  message: string;
+}
+
+const STATUS_TONE_STYLES: Record<StatusTone, string> = {
+  error: 'border-red-200 bg-red-50 text-red-800',
+  warning: 'border-amber-200 bg-amber-50 text-amber-900',
+  note: 'border-slate-200 bg-slate-50 text-slate-600',
+};
+
+const STATUS_TONE_ICONS: Record<StatusTone, typeof ExclamationCircleIcon> = {
+  error: ExclamationCircleIcon,
+  warning: ExclamationTriangleIcon,
+  note: InformationCircleIcon,
+};
 
 const App = () => {
   const [isModalOpen, setIsModalOpen] = useState(true);
@@ -38,14 +64,15 @@ const App = () => {
   const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [pdfDocument, setPdfDocument] = useState<PdfDocumentState | null>(null);
   const [placements, setPlacements] = useState<Placement[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [status, setStatus] = useState<SaveStatus | null>(null);
   const [nextSignatureOffset, setNextSignatureOffset] = useState<Record<ImagePlacementType, number>>({
     signature: 0,
     initial: 0,
   });
   const [renderBudget, setRenderBudget] = useState(0);
   const [isSavingPdf, setIsSavingPdf] = useState(false);
-  const [saveProgress, setSaveProgress] = useState<{ currentPage: number; totalPages: number } | null>(null);
+  const [exportMode, setExportMode] = useState<ExportMode>('print');
+  const [saveProgress, setSaveProgress] = useState<ExportProgress | null>(null);
   const readyPreviewPagesRef = useRef(new Set<number>());
   const textInputRef = useRef<HTMLInputElement>(null);
 
@@ -53,6 +80,11 @@ const App = () => {
     if (placementTool !== 'text') return;
     textInputRef.current?.focus();
   }, [placementTool]);
+
+  useEffect(() => {
+    const dismissTimeout = status?.tone === 'note' ? setTimeout(() => setStatus(null), NOTE_DISMISS_MS) : undefined;
+    return () => clearTimeout(dismissTimeout);
+  }, [status]);
 
   useEffect(
     () => () => {
@@ -72,11 +104,11 @@ const App = () => {
     if (!file) return;
 
     setIsParsingPdf(true);
-    setLoadError(null);
+    setStatus(null);
 
     const nextDocument = await loadPdfDocument(file).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Failed to load the PDF';
-      setLoadError(message);
+      setStatus({ tone: 'error', message });
       return null;
     });
 
@@ -109,24 +141,42 @@ const App = () => {
     if (!pdfDocument) return;
 
     setIsSavingPdf(true);
-    setLoadError(null);
+    setStatus(null);
     setSaveProgress({
       currentPage: 0,
       totalPages: pdfDocument.pageCount,
+      pass: 1,
+      dpi: PRINT_DPI,
     });
 
-    await saveFlattenedPdf({
+    const result = await saveFlattenedPdf({
       pdfDocument,
       placements,
       signatures,
       initials,
-      onProgress: (currentPage, totalPages) => {
-        setSaveProgress({ currentPage, totalPages });
-      },
+      mode: exportMode,
+      onProgress: setSaveProgress,
     }).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Failed to save the PDF';
-      setLoadError(message);
+      setStatus({ tone: 'error', message });
+      return null;
     });
+
+    if (result && exportMode === 'smaller' && !result.targetMet) {
+      setStatus({
+        tone: 'warning',
+        message: `Still ${(result.byteLength / 1_000_000).toFixed(1)} MB at ${
+          result.dpi
+        } DPI, the lowest quality Signatur will export. Try saving fewer pages at a time.`,
+      });
+    } else if (result && exportMode === 'smaller' && result.dpi < PRINT_DPI) {
+      setStatus({
+        tone: 'note',
+        message: `Saved ${(result.byteLength / 1_000_000).toFixed(1)} MB — resolution reduced to ${
+          result.dpi
+        } DPI to fit under 25 MB.`,
+      });
+    }
 
     setIsSavingPdf(false);
     setSaveProgress(null);
@@ -156,7 +206,27 @@ const App = () => {
   }, []);
 
   const currentPlacementHeightPt = signatureHeightMm * POINTS_PER_MILLIMETER;
-  const saveLabel = saveProgress ? `Saving ${saveProgress.currentPage}/${saveProgress.totalPages}` : 'Save';
+  const isSmallerExport = exportMode === 'smaller';
+  const isRetryPass = !!saveProgress && saveProgress.pass > 1;
+  const saveLabel = saveProgress
+    ? `${isRetryPass ? 'Shrinking' : 'Saving'} ${saveProgress.currentPage}/${saveProgress.totalPages}`
+    : 'Save';
+  const saveDetail = saveProgress
+    ? `${
+        isRetryPass
+          ? `Pass ${saveProgress.pass}: re-rendering every page at ${saveProgress.dpi} DPI to fit under 25 MB`
+          : `Rendering at ${saveProgress.dpi} DPI`
+      } — page ${saveProgress.currentPage} of ${saveProgress.totalPages}`
+    : undefined;
+  const saveAnnouncement = saveProgress
+    ? `${isRetryPass ? `Optimisation pass ${saveProgress.pass}` : 'Saving'} at ${saveProgress.dpi} DPI, ${
+        saveProgress.totalPages
+      } pages`
+    : '';
+  const savedPagePercent = saveProgress
+    ? Math.round((saveProgress.currentPage / Math.max(1, saveProgress.totalPages)) * 100)
+    : 0;
+  const StatusIcon = status ? STATUS_TONE_ICONS[status.tone] : null;
 
   const isTextTool = placementTool === 'text';
   const sizeControl = isTextTool
@@ -196,8 +266,8 @@ const App = () => {
         setInitials={setInitials}
       />
       <main className="flex h-screen flex-col">
-        <div className="flex flex-shrink-0 items-center justify-between gap-2 overflow-x-auto border-b border-solid px-3 py-2 lg:gap-3">
-          <div className="flex shrink-0 items-center gap-2 lg:gap-3">
+        <div className="relative flex flex-shrink-0 items-center justify-between gap-4 overflow-x-auto border-b border-solid px-2 py-2">
+          <div className="flex w-1/3 min-w-fit items-center gap-4">
             <button
               type="button"
               disabled={isModalOpen}
@@ -230,7 +300,7 @@ const App = () => {
               onChange={handlePdfInputChange}
             />
           </div>
-          <div className="flex flex-1 items-center justify-center gap-2 lg:gap-3">
+          <div className="flex w-1/3 min-w-fit items-center justify-center gap-2 lg:gap-3">
             <div className="flex h-10 shrink-0 items-center gap-1 rounded-lg bg-slate-100 p-1">
               {PLACEMENT_TOOLS.map(({ tool, label }) => {
                 const isUnavailable = tool === 'initial' && initials.length === 0;
@@ -311,9 +381,44 @@ const App = () => {
               <TrashIcon className="h-6 w-6" />
             </button>
           </div>
-          <div className="flex shrink-0 items-center justify-end">
+          <div className="sticky right-0 z-10 flex w-1/3 min-w-fit items-center justify-end gap-2 bg-white before:absolute before:inset-y-0 before:-left-4 before:w-4 before:bg-gradient-to-r before:from-transparent before:to-white before:content-['']">
+            {saveProgress ? (
+              <p className="whitespace-nowrap px-1 text-sm text-slate-500" title={saveDetail}>
+                {isRetryPass && <span className="hidden xl:inline">Pass {saveProgress.pass} · </span>}
+                {saveProgress.dpi} DPI
+              </p>
+            ) : (
+              <div
+                className="flex h-10 items-center rounded-md bg-slate-100 p-1"
+                role="group"
+                aria-label="PDF export quality"
+              >
+                <button
+                  type="button"
+                  aria-pressed={!isSmallerExport}
+                  title="Save at 300 DPI print quality"
+                  className={`h-8 rounded px-3 text-sm font-medium transition-colors ${
+                    isSmallerExport ? 'text-slate-500 hover:text-slate-700' : 'bg-white text-slate-800 shadow-sm'
+                  }`}
+                  onClick={() => setExportMode('print')}
+                >
+                  300 DPI
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={isSmallerExport}
+                  title="Aim for a file under 25 MB, reducing resolution as far as 150 DPI if needed"
+                  className={`h-8 rounded px-3 text-sm font-medium transition-colors ${
+                    isSmallerExport ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  onClick={() => setExportMode('smaller')}
+                >
+                  Under 25 MB
+                </button>
+              </div>
+            )}
             <button
-              className={`flex h-10 w-10 items-center justify-center gap-2 overflow-hidden rounded-lg px-2 font-bold text-white lg:w-40 lg:px-3 ${
+              className={`flex h-10 w-12 items-center justify-center gap-2 overflow-hidden rounded px-3 font-bold text-white xl:w-48 ${
                 pdfDocument && placements.length
                   ? isSavingPdf
                     ? 'bg-violet-500/90'
@@ -321,21 +426,40 @@ const App = () => {
                   : 'bg-gray-300'
               }`}
               type="button"
-              title={saveLabel}
+              aria-label={saveLabel}
+              title={saveDetail ?? 'Save'}
               disabled={pdfDocument === null || isSavingPdf || placements.length === 0}
               onClick={handleSave}
             >
               {isSavingPdf ? (
-                <Loader className="h-6 w-6 shrink-0 animate-spin text-white" />
+                <Loader className="h-5 w-5 shrink-0 animate-spin text-white" />
               ) : (
                 <ArrowDownTrayIcon className="h-6 w-6 shrink-0" />
               )}
-              <span className="hidden min-w-0 truncate text-sm lg:inline">{saveLabel}</span>
+              <span className="hidden min-w-0 truncate text-sm xl:inline">{saveLabel}</span>
             </button>
           </div>
+          {saveProgress && (
+            <div
+              className="absolute inset-x-0 bottom-0 h-0.5 bg-violet-100"
+              role="progressbar"
+              aria-label={saveDetail}
+              aria-valuenow={savedPagePercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div
+                className="h-full bg-violet-500 transition-[width] duration-200"
+                style={{ width: `${savedPagePercent}%` }}
+              />
+            </div>
+          )}
+          <p aria-live="polite" className="sr-only">
+            {saveAnnouncement}
+          </p>
         </div>
         <div
-          className={`border-b border-solid bg-violet-100 text-center transition-all ${
+          className={`overflow-hidden border-b border-solid bg-violet-100 text-center transition-all ${
             !pdfDocument || !placements.length || isAwaitingText ? 'max-h-36' : 'max-h-0'
           }`}
         >
@@ -345,8 +469,26 @@ const App = () => {
           >
             {hintLabel}
           </label>
-          {loadError && <p className="pb-2 text-sm font-medium text-red-700">{loadError}</p>}
         </div>
+        {status && StatusIcon && (
+          <div
+            role={status.tone === 'error' ? 'alert' : 'status'}
+            className={`flex flex-shrink-0 items-center justify-center gap-2 border-b border-solid px-3 py-1.5 text-sm ${
+              STATUS_TONE_STYLES[status.tone]
+            }`}
+          >
+            <StatusIcon className="h-4 w-4 flex-shrink-0" />
+            <p>{status.message}</p>
+            <button
+              type="button"
+              aria-label="Dismiss message"
+              className="-mr-1 rounded p-1 opacity-60 transition-opacity hover:opacity-100"
+              onClick={() => setStatus(null)}
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <div className="flex flex-grow justify-center overflow-auto bg-slate-100">
           {pdfDocument === null ? (
             <p className="flex select-none flex-col justify-center text-slate-500">No document selected</p>
