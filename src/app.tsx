@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownTrayIcon,
-  ArrowsPointingInIcon,
   ArrowUturnLeftIcon,
   Cog8ToothIcon,
   DocumentTextIcon,
@@ -44,145 +43,6 @@ const STATUS_TONE_ICONS: Record<StatusTone, typeof ExclamationCircleIcon> = {
   error: ExclamationCircleIcon,
   warning: ExclamationTriangleIcon,
   note: InformationCircleIcon,
-};
-const SHOW_EXPORT_TOGGLE_COMPARISON = true;
-
-const ExportToggleComparison = () => {
-  const [isSmaller, setIsSmaller] = useState(false);
-
-  const renderStart = () => (
-    <div className="flex w-1/3 min-w-fit items-center gap-4">
-      <button type="button" className="rounded bg-violet-50 px-2 py-2 text-violet-700">
-        <Cog8ToothIcon className="h-6 w-6" />
-      </button>
-      <button type="button" className="rounded bg-violet-50 px-4 py-2 font-semibold text-violet-700">
-        Choose PDF
-      </button>
-    </div>
-  );
-
-  const renderCenter = () => (
-    <div className="flex w-1/3 min-w-fit items-center justify-center gap-4">
-      <div className="flex w-64">
-        <button type="button" className="flex-grow rounded-l-md border border-violet-500 bg-violet-500 px-2 py-2 font-bold text-white">Sign</button>
-        <button type="button" className="-ml-px flex-grow rounded-r-md border border-gray-300 bg-gray-100 px-2 py-2 font-bold text-slate-400">Initial</button>
-      </div>
-      <label className="flex h-10 w-40 items-center gap-2">
-        <input
-          type="range"
-          min="5"
-          max="100"
-          defaultValue="25"
-          className="h-2 min-w-0 flex-1 appearance-none rounded-lg bg-gray-200 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-violet-500"
-        />
-        <span className="w-14 text-right text-sm tabular-nums text-slate-500">25 mm</span>
-      </label>
-      <button type="button" className="rounded bg-gray-300 px-2 py-2 text-white"><ArrowUturnLeftIcon className="h-6 w-6" /></button>
-      <button type="button" className="rounded bg-gray-300 px-2 py-2 text-white"><TrashIcon className="h-6 w-6" /></button>
-    </div>
-  );
-
-  const saveButton = (
-    <button type="button" className="flex min-w-[9.5rem] items-center justify-center gap-2 rounded bg-gray-300 px-3 py-2 font-bold text-white">
-      <ArrowDownTrayIcon className="h-6 w-6" />
-      <span className="text-sm">Save</span>
-    </button>
-  );
-
-  return (
-    <main className="min-h-screen bg-slate-100 px-6 py-8 text-slate-900">
-      <div className="mx-auto max-w-[1500px] space-y-8">
-        <div>
-          <h1 className="text-lg font-semibold">Under-25-MB control comparison</h1>
-          <p className="mt-1 text-sm text-slate-500">Toggle any option. All three update together.</p>
-        </div>
-
-        <section>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">A · Labelled switch</p>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="relative flex min-w-[1100px] items-center justify-between gap-4 px-2 py-2">
-              {renderStart()}
-              {renderCenter()}
-              <div className="flex w-1/3 min-w-fit items-center justify-end gap-3">
-                <span className="text-sm font-medium text-slate-600">Under 25 MB</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={isSmaller}
-                  onClick={() => setIsSmaller((current) => !current)}
-                  className={`relative h-6 w-11 rounded-full transition-colors ${isSmaller ? 'bg-violet-500' : 'bg-slate-300'}`}
-                >
-                  <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${isSmaller ? 'translate-x-0.5' : '-translate-x-[1.125rem]'}`} />
-                </button>
-                {saveButton}
-              </div>
-              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-violet-100"><div className="h-full w-2/5 bg-violet-500" /></div>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">B · Quality selector</p>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="relative flex min-w-[1150px] items-center justify-between gap-4 px-2 py-2">
-              {renderStart()}
-              {renderCenter()}
-              <div className="flex w-1/3 min-w-fit items-center justify-end gap-2">
-                <div className="flex h-10 items-center rounded-md bg-slate-100 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setIsSmaller(false)}
-                    className={`h-8 rounded px-3 text-sm font-medium transition-colors ${!isSmaller ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
-                  >
-                    300 DPI
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsSmaller(true)}
-                    className={`h-8 rounded px-3 text-sm font-medium transition-colors ${isSmaller ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500'}`}
-                  >
-                    Under 25 MB
-                  </button>
-                </div>
-                {saveButton}
-              </div>
-              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-violet-100"><div className="h-full w-2/5 bg-violet-500" /></div>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">C · Toggle chip</p>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="relative flex min-w-[1100px] items-center justify-between gap-4 px-2 py-2">
-              {renderStart()}
-              {renderCenter()}
-              <div className="flex w-1/3 min-w-fit items-center justify-end gap-2">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={isSmaller}
-                  onClick={() => setIsSmaller((current) => !current)}
-                  className={`flex h-10 items-center gap-2 rounded-md border px-2.5 text-sm font-medium transition-colors ${
-                    isSmaller
-                      ? 'border-violet-200 bg-violet-50 text-violet-700'
-                      : 'border-gray-300 bg-white text-slate-600'
-                  }`}
-                >
-                  <span className={`relative h-5 w-9 rounded-full transition-colors ${isSmaller ? 'bg-violet-500' : 'bg-slate-300'}`}>
-                    <span className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${isSmaller ? 'translate-x-4' : ''}`} />
-                  </span>
-                  <span>Under 25 MB</span>
-                </button>
-                {saveButton}
-              </div>
-              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-violet-100"><div className="h-full w-2/5 bg-violet-500" /></div>
-            </div>
-          </div>
-        </section>
-      </div>
-    </main>
-  );
 };
 
 const App = () => {
@@ -350,8 +210,6 @@ const App = () => {
     : 0;
   const StatusIcon = status ? STATUS_TONE_ICONS[status.tone] : null;
 
-  if (SHOW_EXPORT_TOGGLE_COMPARISON) return <ExportToggleComparison />;
-
   return (
     <>
       <StarterModal
@@ -465,25 +323,34 @@ const App = () => {
                 {saveProgress.dpi} DPI
               </p>
             ) : (
-              <button
-                type="button"
-                aria-pressed={isSmallerExport}
-                aria-label="Keep the file under 25 MB"
-                title={
-                  isSmallerExport
-                    ? 'On: Signatur lowers the export resolution as far as 150 DPI to get the file under 25 MB. Turn off for 300 DPI print quality.'
-                    : 'Off: saving at 300 DPI print quality. Turn on to aim for a file under 25 MB, at as low as 150 DPI.'
-                }
-                className={`flex h-10 items-center gap-2 rounded border px-2 text-sm font-medium transition-colors ${
-                  isSmallerExport
-                    ? 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100'
-                    : 'border-gray-300 bg-white text-slate-500 hover:bg-gray-50 hover:text-slate-700'
-                }`}
-                onClick={() => setExportMode(isSmallerExport ? 'print' : 'smaller')}
-              >
-                <ArrowsPointingInIcon className="h-5 w-5" />
-                <span className="hidden whitespace-nowrap xl:inline">Under 25 MB</span>
-              </button>
+              <div className="flex h-10 items-center rounded-md bg-slate-100 p-1" role="group" aria-label="PDF export quality">
+                <button
+                  type="button"
+                  aria-pressed={!isSmallerExport}
+                  title="Save at 300 DPI print quality"
+                  className={`h-8 rounded px-3 text-sm font-medium transition-colors ${
+                    !isSmallerExport
+                      ? 'bg-white text-slate-800 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  onClick={() => setExportMode('print')}
+                >
+                  300 DPI
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={isSmallerExport}
+                  title="Aim for a file under 25 MB, reducing resolution as far as 150 DPI if needed"
+                  className={`h-8 rounded px-3 text-sm font-medium transition-colors ${
+                    isSmallerExport
+                      ? 'bg-white text-violet-700 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  onClick={() => setExportMode('smaller')}
+                >
+                  Under 25 MB
+                </button>
+              </div>
             )}
             <button
               className={`flex min-w-[3rem] items-center justify-center gap-2 rounded px-3 py-2 font-bold text-white xl:min-w-[9.5rem] ${
