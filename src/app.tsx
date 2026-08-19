@@ -10,6 +10,7 @@ import StarterModal from './starter-modal';
 import Loader from './loader';
 import loadPdfDocument from './pdf/document';
 import saveFlattenedPdf from './pdf/export';
+import type { ExportMode, ExportProgress } from './pdf/export';
 import type { PdfDocumentState, SignType, SignaturePlacement } from './pdf/types';
 import PageCanvas from './components/page-canvas';
 
@@ -35,7 +36,9 @@ const App = () => {
   });
   const [renderBudget, setRenderBudget] = useState(0);
   const [isSavingPdf, setIsSavingPdf] = useState(false);
-  const [saveProgress, setSaveProgress] = useState<{ currentPage: number; totalPages: number } | null>(null);
+  const [exportMode, setExportMode] = useState<ExportMode>('print');
+  const [saveProgress, setSaveProgress] = useState<ExportProgress | null>(null);
+  const [saveResult, setSaveResult] = useState<{ message: string; isWarning: boolean } | null>(null);
   const readyPreviewPagesRef = useRef(new Set<number>());
 
   useEffect(
@@ -71,6 +74,7 @@ const App = () => {
     setRenderBudget(Math.min(2, nextDocument.pageCount));
     setSignedLocations([]);
     setSaveProgress(null);
+    setSaveResult(null);
     setPdfDocument(nextDocument);
   };
 
@@ -94,23 +98,37 @@ const App = () => {
 
     setIsSavingPdf(true);
     setLoadError(null);
+    setSaveResult(null);
     setSaveProgress({
       currentPage: 0,
       totalPages: pdfDocument.pageCount,
+      pass: 1,
+      dpi: 300,
     });
 
-    await saveFlattenedPdf({
+    const result = await saveFlattenedPdf({
       pdfDocument,
       placements: signedLocations,
       signatures,
       initials,
-      onProgress: (currentPage, totalPages) => {
-        setSaveProgress({ currentPage, totalPages });
-      },
+      mode: exportMode,
+      onProgress: setSaveProgress,
     }).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Failed to save the PDF';
       setLoadError(message);
+      return null;
     });
+
+    if (result) {
+      const sizeMb = (result.byteLength / 1_000_000).toFixed(1);
+      const isWarning = exportMode === 'smaller' && !result.targetMet;
+      setSaveResult({
+        message: isWarning
+          ? `Couldn’t get below 25 MB without reducing below 150 DPI; saved ${sizeMb} MB.`
+          : `Saved ${sizeMb} MB at ${result.dpi} DPI.`,
+        isWarning,
+      });
+    }
 
     setIsSavingPdf(false);
     setSaveProgress(null);
@@ -138,7 +156,11 @@ const App = () => {
   }, []);
 
   const currentPlacementHeightPt = signatureHeightMm * POINTS_PER_MILLIMETER;
-  const saveLabel = saveProgress ? `Saving ${saveProgress.currentPage}/${saveProgress.totalPages}` : 'Save';
+  const saveLabel = saveProgress
+    ? saveProgress.pass === 1
+      ? `Saving at ${saveProgress.dpi} DPI · ${saveProgress.currentPage}/${saveProgress.totalPages}`
+      : `Optimising, pass ${saveProgress.pass} at ${saveProgress.dpi} DPI · ${saveProgress.currentPage}/${saveProgress.totalPages}`
+    : 'Save';
 
   return (
     <>
@@ -247,6 +269,19 @@ const App = () => {
             </button>
           </div>
           <div className="flex w-1/3 min-w-fit items-center justify-end gap-4">
+            <label htmlFor="export-mode" className="text-sm font-medium text-slate-700">
+              Export
+              <select
+                id="export-mode"
+                value={exportMode}
+                disabled={isSavingPdf}
+                onChange={(event) => setExportMode(event.target.value as ExportMode)}
+                className="ml-2 rounded-md border border-gray-300 bg-white px-2 py-2 text-sm font-normal text-slate-800 disabled:bg-gray-100"
+              >
+                <option value="print">Print quality (300 DPI)</option>
+                <option value="smaller">Smaller file (aim under 25 MB)</option>
+              </select>
+            </label>
             <button
               className={`flex min-w-[7rem] items-center justify-center gap-2 rounded px-3 py-2 font-bold text-white ${
                 pdfDocument && signedLocations.length
@@ -267,7 +302,7 @@ const App = () => {
         </div>
         <div
           className={`border-b border-solid bg-violet-100 text-center transition-all ${
-            !pdfDocument || !signedLocations.length ? 'max-h-36' : 'max-h-0'
+            !pdfDocument || !signedLocations.length || loadError || saveResult ? 'max-h-36' : 'max-h-0'
           }`}
         >
           <label
@@ -277,6 +312,11 @@ const App = () => {
             {pdfDocument ? 'Now click to sign' : 'Select a file to sign'}
           </label>
           {loadError && <p className="pb-2 text-sm font-medium text-red-700">{loadError}</p>}
+          {saveResult && (
+            <p className={`pb-2 text-sm font-medium ${saveResult.isWarning ? 'text-amber-800' : 'text-green-700'}`}>
+              {saveResult.message}
+            </p>
+          )}
         </div>
         <div className="flex flex-grow justify-center overflow-auto bg-slate-100">
           {pdfDocument === null ? (
