@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownTrayIcon,
+  ArrowsPointingInIcon,
   ArrowUturnLeftIcon,
   Cog8ToothIcon,
   DocumentTextIcon,
+  ExclamationCircleIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon,
   TrashIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import StarterModal from './starter-modal';
 import Loader from './loader';
@@ -19,6 +24,27 @@ const MIN_SIGNATURE_HEIGHT_MM = 5;
 const MAX_SIGNATURE_HEIGHT_MM = 100;
 const POINTS_PER_MILLIMETER = 72 / 25.4;
 const NO_PLACEMENTS: SignaturePlacement[] = [];
+const NOTE_DISMISS_MS = 9000;
+const PRINT_DPI = 300;
+
+type StatusTone = 'error' | 'warning' | 'note';
+
+interface SaveStatus {
+  tone: StatusTone;
+  message: string;
+}
+
+const STATUS_TONE_STYLES: Record<StatusTone, string> = {
+  error: 'border-red-200 bg-red-50 text-red-800',
+  warning: 'border-amber-200 bg-amber-50 text-amber-900',
+  note: 'border-slate-200 bg-slate-50 text-slate-600',
+};
+
+const STATUS_TONE_ICONS: Record<StatusTone, typeof ExclamationCircleIcon> = {
+  error: ExclamationCircleIcon,
+  warning: ExclamationTriangleIcon,
+  note: InformationCircleIcon,
+};
 
 const App = () => {
   const [isModalOpen, setIsModalOpen] = useState(true);
@@ -29,7 +55,7 @@ const App = () => {
   const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [pdfDocument, setPdfDocument] = useState<PdfDocumentState | null>(null);
   const [signedLocations, setSignedLocations] = useState<SignaturePlacement[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [status, setStatus] = useState<SaveStatus | null>(null);
   const [nextSignatureOffset, setNextSignatureOffset] = useState<Record<SignType, number>>({
     signature: 0,
     initial: 0,
@@ -38,8 +64,12 @@ const App = () => {
   const [isSavingPdf, setIsSavingPdf] = useState(false);
   const [exportMode, setExportMode] = useState<ExportMode>('print');
   const [saveProgress, setSaveProgress] = useState<ExportProgress | null>(null);
-  const [saveResult, setSaveResult] = useState<{ message: string; isWarning: boolean } | null>(null);
   const readyPreviewPagesRef = useRef(new Set<number>());
+
+  useEffect(() => {
+    const dismissTimeout = status?.tone === 'note' ? setTimeout(() => setStatus(null), NOTE_DISMISS_MS) : undefined;
+    return () => clearTimeout(dismissTimeout);
+  }, [status]);
 
   useEffect(
     () => () => {
@@ -59,11 +89,11 @@ const App = () => {
     if (!file) return;
 
     setIsParsingPdf(true);
-    setLoadError(null);
+    setStatus(null);
 
     const nextDocument = await loadPdfDocument(file).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Failed to load the PDF';
-      setLoadError(message);
+      setStatus({ tone: 'error', message });
       return null;
     });
 
@@ -74,7 +104,6 @@ const App = () => {
     setRenderBudget(Math.min(2, nextDocument.pageCount));
     setSignedLocations([]);
     setSaveProgress(null);
-    setSaveResult(null);
     setPdfDocument(nextDocument);
   };
 
@@ -97,13 +126,12 @@ const App = () => {
     if (!pdfDocument) return;
 
     setIsSavingPdf(true);
-    setLoadError(null);
-    setSaveResult(null);
+    setStatus(null);
     setSaveProgress({
       currentPage: 0,
       totalPages: pdfDocument.pageCount,
       pass: 1,
-      dpi: 300,
+      dpi: PRINT_DPI,
     });
 
     const result = await saveFlattenedPdf({
@@ -115,18 +143,23 @@ const App = () => {
       onProgress: setSaveProgress,
     }).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : 'Failed to save the PDF';
-      setLoadError(message);
+      setStatus({ tone: 'error', message });
       return null;
     });
 
-    if (result) {
-      const sizeMb = (result.byteLength / 1_000_000).toFixed(1);
-      const isWarning = exportMode === 'smaller' && !result.targetMet;
-      setSaveResult({
-        message: isWarning
-          ? `Couldn’t get below 25 MB without reducing below 150 DPI; saved ${sizeMb} MB.`
-          : `Saved ${sizeMb} MB at ${result.dpi} DPI.`,
-        isWarning,
+    if (result && exportMode === 'smaller' && !result.targetMet) {
+      setStatus({
+        tone: 'warning',
+        message: `Still ${(result.byteLength / 1_000_000).toFixed(1)} MB at ${
+          result.dpi
+        } DPI, the lowest quality Signatur will export. Try saving fewer pages at a time.`,
+      });
+    } else if (result && exportMode === 'smaller' && result.dpi < PRINT_DPI) {
+      setStatus({
+        tone: 'note',
+        message: `Saved ${(result.byteLength / 1_000_000).toFixed(1)} MB — resolution reduced to ${
+          result.dpi
+        } DPI to fit under 25 MB.`,
       });
     }
 
@@ -156,11 +189,27 @@ const App = () => {
   }, []);
 
   const currentPlacementHeightPt = signatureHeightMm * POINTS_PER_MILLIMETER;
+  const isSmallerExport = exportMode === 'smaller';
+  const isRetryPass = !!saveProgress && saveProgress.pass > 1;
   const saveLabel = saveProgress
-    ? saveProgress.pass === 1
-      ? `Saving at ${saveProgress.dpi} DPI · ${saveProgress.currentPage}/${saveProgress.totalPages}`
-      : `Optimising, pass ${saveProgress.pass} at ${saveProgress.dpi} DPI · ${saveProgress.currentPage}/${saveProgress.totalPages}`
+    ? `${isRetryPass ? 'Shrinking' : 'Saving'} ${saveProgress.currentPage}/${saveProgress.totalPages}`
     : 'Save';
+  const saveDetail = saveProgress
+    ? `${
+        isRetryPass
+          ? `Pass ${saveProgress.pass}: re-rendering every page at ${saveProgress.dpi} DPI to fit under 25 MB`
+          : `Rendering at ${saveProgress.dpi} DPI`
+      } — page ${saveProgress.currentPage} of ${saveProgress.totalPages}`
+    : undefined;
+  const saveAnnouncement = saveProgress
+    ? `${isRetryPass ? `Optimisation pass ${saveProgress.pass}` : 'Saving'} at ${saveProgress.dpi} DPI, ${
+        saveProgress.totalPages
+      } pages`
+    : '';
+  const savedPagePercent = saveProgress
+    ? Math.round((saveProgress.currentPage / Math.max(1, saveProgress.totalPages)) * 100)
+    : 0;
+  const StatusIcon = status ? STATUS_TONE_ICONS[status.tone] : null;
 
   return (
     <>
@@ -172,7 +221,7 @@ const App = () => {
         setInitials={setInitials}
       />
       <main className="flex h-screen flex-col">
-        <div className="flex flex-shrink-0 items-center justify-between gap-4 overflow-x-auto border-b border-solid px-2 py-2">
+        <div className="relative flex flex-shrink-0 items-center justify-between gap-4 overflow-x-auto border-b border-solid px-2 py-2">
           <div className="flex w-1/3 min-w-fit items-center gap-4">
             <button
               type="button"
@@ -185,7 +234,7 @@ const App = () => {
             {isParsingPdf && <Loader className="h-7 w-7 animate-spin text-violet-500" />}
             <label
               htmlFor="pdf-input"
-              className={`rounded px-2 py-2 font-bold disabled:bg-gray-300 disabled:text-gray-400 lg:hidden ${
+              className={`rounded px-2 py-2 font-bold disabled:bg-gray-300 disabled:text-gray-400 xl:hidden ${
                 pdfDocument
                   ? 'bg-violet-50 text-violet-700 hover:bg-violet-100 active:bg-violet-200'
                   : 'bg-violet-500 text-white hover:bg-violet-700 active:bg-violet-800'
@@ -196,7 +245,7 @@ const App = () => {
             <input
               id="pdf-input"
               disabled={isParsingPdf || isSavingPdf}
-              className={`hidden text-sm text-slate-500 file:mr-4 file:rounded file:border-0 file:px-4 file:py-2 file:text-base file:font-semibold file:disabled:bg-gray-300 file:disabled:text-white lg:block ${
+              className={`hidden text-sm text-slate-500 file:mr-4 file:rounded file:border-0 file:px-4 file:py-2 file:text-base file:font-semibold file:disabled:bg-gray-300 file:disabled:text-white xl:block ${
                 pdfDocument
                   ? 'file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 file:active:bg-violet-200'
                   : 'file:bg-violet-500 file:text-white hover:file:bg-violet-700 file:active:bg-violet-800'
@@ -237,20 +286,20 @@ const App = () => {
                 Initial
               </button>
             </div>
-            <div className="w-56 select-none">
-              <label htmlFor="signature-size" className="mb-1 whitespace-nowrap text-slate-800">
-                Signature Size <span className="text-sm text-gray-500">({signatureHeightMm} mm high)</span>
-              </label>
+            <label className="flex h-10 w-40 shrink-0 select-none items-center gap-2">
+              <span className="sr-only">Signature size</span>
               <input
-                id="signature-size"
                 type="range"
                 value={signatureHeightMm}
                 onChange={(event) => setSignatureHeightMm(Number.parseInt(event.target.value, 10))}
                 min={MIN_SIGNATURE_HEIGHT_MM}
                 max={MAX_SIGNATURE_HEIGHT_MM}
-                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:bg-violet-500 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-none [&::-webkit-slider-thumb]:bg-violet-500"
+                className="h-2 min-w-0 flex-1 cursor-pointer appearance-none rounded-lg bg-gray-200 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:bg-violet-500 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-none [&::-webkit-slider-thumb]:bg-violet-500"
               />
-            </div>
+              <span className="w-14 shrink-0 whitespace-nowrap text-right text-sm tabular-nums text-slate-500">
+                {signatureHeightMm} mm
+              </span>
+            </label>
             <button
               className="rounded bg-violet-500 px-2 py-2 font-bold text-white hover:bg-violet-700 active:bg-violet-800 disabled:bg-gray-300"
               type="button"
@@ -268,22 +317,35 @@ const App = () => {
               <TrashIcon className="h-6 w-6" />
             </button>
           </div>
-          <div className="flex w-1/3 min-w-fit items-center justify-end gap-4">
-            <label htmlFor="export-mode" className="text-sm font-medium text-slate-700">
-              Export
-              <select
-                id="export-mode"
-                value={exportMode}
-                disabled={isSavingPdf}
-                onChange={(event) => setExportMode(event.target.value as ExportMode)}
-                className="ml-2 rounded-md border border-gray-300 bg-white px-2 py-2 text-sm font-normal text-slate-800 disabled:bg-gray-100"
+          <div className="sticky right-0 z-10 flex w-1/3 min-w-fit items-center justify-end gap-2 bg-white before:absolute before:inset-y-0 before:-left-4 before:w-4 before:bg-gradient-to-r before:from-transparent before:to-white before:content-['']">
+            {saveProgress ? (
+              <p className="whitespace-nowrap px-1 text-sm text-slate-500" title={saveDetail}>
+                {isRetryPass && <span className="hidden xl:inline">Pass {saveProgress.pass} · </span>}
+                {saveProgress.dpi} DPI
+              </p>
+            ) : (
+              <button
+                type="button"
+                aria-pressed={isSmallerExport}
+                aria-label="Keep the file under 25 MB"
+                title={
+                  isSmallerExport
+                    ? 'On: Signatur lowers the export resolution as far as 150 DPI to get the file under 25 MB. Turn off for 300 DPI print quality.'
+                    : 'Off: saving at 300 DPI print quality. Turn on to aim for a file under 25 MB, at as low as 150 DPI.'
+                }
+                className={`flex h-10 items-center gap-2 rounded border px-2 text-sm font-medium transition-colors ${
+                  isSmallerExport
+                    ? 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100'
+                    : 'border-gray-300 bg-white text-slate-500 hover:bg-gray-50 hover:text-slate-700'
+                }`}
+                onClick={() => setExportMode(isSmallerExport ? 'print' : 'smaller')}
               >
-                <option value="print">Print quality (300 DPI)</option>
-                <option value="smaller">Smaller file (aim under 25 MB)</option>
-              </select>
-            </label>
+                <ArrowsPointingInIcon className="h-5 w-5" />
+                <span className="hidden whitespace-nowrap xl:inline">Under 25 MB</span>
+              </button>
+            )}
             <button
-              className={`flex min-w-[7rem] items-center justify-center gap-2 rounded px-3 py-2 font-bold text-white ${
+              className={`flex min-w-[3rem] items-center justify-center gap-2 rounded px-3 py-2 font-bold text-white xl:min-w-[9.5rem] ${
                 pdfDocument && signedLocations.length
                   ? isSavingPdf
                     ? 'bg-violet-500/90'
@@ -291,18 +353,41 @@ const App = () => {
                   : 'bg-gray-300'
               }`}
               type="button"
+              aria-label={saveLabel}
+              title={saveDetail ?? 'Save'}
               disabled={pdfDocument === null || isSavingPdf || signedLocations.length === 0}
               onClick={handleSave}
             >
-              {isSavingPdf && <Loader className="h-5 w-5 animate-spin text-white" />}
-              <ArrowDownTrayIcon className="h-6 w-6" />
-              <span className="hidden text-sm lg:inline">{saveLabel}</span>
+              {isSavingPdf ? (
+                <Loader className="h-5 w-5 animate-spin text-white" />
+              ) : (
+                <ArrowDownTrayIcon className="h-6 w-6" />
+              )}
+              <span className="hidden text-sm xl:inline">{saveLabel}</span>
             </button>
           </div>
+          {saveProgress && (
+            <div
+              className="absolute inset-x-0 bottom-0 h-0.5 bg-violet-100"
+              role="progressbar"
+              aria-label={saveDetail}
+              aria-valuenow={savedPagePercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div
+                className="h-full bg-violet-500 transition-[width] duration-200"
+                style={{ width: `${savedPagePercent}%` }}
+              />
+            </div>
+          )}
+          <p aria-live="polite" className="sr-only">
+            {saveAnnouncement}
+          </p>
         </div>
         <div
-          className={`border-b border-solid bg-violet-100 text-center transition-all ${
-            !pdfDocument || !signedLocations.length || loadError || saveResult ? 'max-h-36' : 'max-h-0'
+          className={`overflow-hidden border-b border-solid bg-violet-100 text-center transition-all ${
+            !pdfDocument || !signedLocations.length ? 'max-h-36' : 'max-h-0'
           }`}
         >
           <label
@@ -311,13 +396,26 @@ const App = () => {
           >
             {pdfDocument ? 'Now click to sign' : 'Select a file to sign'}
           </label>
-          {loadError && <p className="pb-2 text-sm font-medium text-red-700">{loadError}</p>}
-          {saveResult && (
-            <p className={`pb-2 text-sm font-medium ${saveResult.isWarning ? 'text-amber-800' : 'text-green-700'}`}>
-              {saveResult.message}
-            </p>
-          )}
         </div>
+        {status && StatusIcon && (
+          <div
+            role={status.tone === 'error' ? 'alert' : 'status'}
+            className={`flex flex-shrink-0 items-center justify-center gap-2 border-b border-solid px-3 py-1.5 text-sm ${
+              STATUS_TONE_STYLES[status.tone]
+            }`}
+          >
+            <StatusIcon className="h-4 w-4 flex-shrink-0" />
+            <p>{status.message}</p>
+            <button
+              type="button"
+              aria-label="Dismiss message"
+              className="-mr-1 rounded p-1 opacity-60 transition-opacity hover:opacity-100"
+              onClick={() => setStatus(null)}
+            >
+              <XMarkIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <div className="flex flex-grow justify-center overflow-auto bg-slate-100">
           {pdfDocument === null ? (
             <p className="flex select-none flex-col justify-center text-slate-500">No document selected</p>
