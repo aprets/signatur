@@ -1,44 +1,28 @@
 /**
  * Temporary comparison of signature pack UI treatments, reachable at `?pack-designs=1`.
- * One real modal at a time, over a mock of the app behind it. Delete this folder and the
- * `?pack-designs` branch in main.tsx once a direction has been picked.
+ * One real modal at a time, over a mock of the app behind it. Each option owns its whole
+ * modal — panel size, welcome copy, hierarchy and footer are all part of the design.
+ * Delete this folder and the `?pack-designs` branch in main.tsx once a direction has been picked.
  */
 import { useState } from 'react';
-import { DemoModal, useDemoPacks } from './shared';
-import OptionLedger from './option-ledger';
-import OptionRoster from './option-roster';
-import OptionSwitcher from './option-switcher';
-import OptionFocus from './option-focus';
-import type { DemoPacks } from './shared';
+import { useDemoPacks } from './shared';
+import OptionSplit from './option-split';
+import OptionStage from './option-stage';
 
 const VARIANTS = [
   {
-    id: 'ledger',
-    name: 'Ledger',
-    lineage: 'from B',
-    idea: 'Two panes in one bordered box: a pack table on the left whose Sig/Init columns share a single grid with the header, and a detail side that is just a name, a divider and two asset rows — no inner cards. Delete moved off the list rows (no hover-only controls) and confirms in an overlay pinned over the name field.',
-    render: (demo: DemoPacks) => <OptionLedger demo={demo} />,
+    id: 'split',
+    name: 'Split',
+    lineage: 'from Roster',
+    idea: 'The pack list becomes the modal itself: a full-bleed violet rail holding the welcome copy, the packs and the credits, so the white side only ever shows the active pack — its name as the title and two wide upload wells. No box inside a box, no per-file controls, delete confirms in the footer.',
+    Component: OptionSplit,
   },
   {
-    id: 'roster',
-    name: 'Roster',
-    lineage: 'from B',
-    idea: 'Same two panes, but counts become pictures: each list row previews its own signatures, and the detail side is a fixed 5-slot thumbnail grid per type with a permanent leading Add tile and per-file remove. Deleting a pack takes over the New pack row.',
-    render: (demo: DemoPacks) => <OptionRoster demo={demo} />,
-  },
-  {
-    id: 'switcher',
-    name: 'Switcher',
-    lineage: 'from C',
-    idea: 'The whole pack concept collapses into one 44px bar: name, counts, picker. The pack list and every destructive action live in overlays, so the body below never moves. Uploads are two dividered lines with an inline thumbnail strip.',
-    render: (demo: DemoPacks) => <OptionSwitcher demo={demo} />,
-  },
-  {
-    id: 'focus',
-    name: 'Focus',
-    lineage: 'from C',
-    idea: 'Inverts the hierarchy: the active pack is a rename-in-place title with its two upload wells side by side, and pack management is demoted to a quiet single-line index at the bottom. Least chrome, no popovers, no list pane.',
-    render: (demo: DemoPacks) => <OptionFocus demo={demo} />,
+    id: 'stage',
+    name: 'Stage',
+    lineage: 'from Switcher',
+    idea: 'No dropdown at all. The active pack is the headline; switching flips the modal to a second full-size face listing the packs. The body is full-bleed bands — signatures, initials — and the welcome copy is demoted to a footnote beside the primary action.',
+    Component: OptionStage,
   },
 ];
 
@@ -56,8 +40,11 @@ const AppBackdrop = () => (
   </div>
 );
 
-/** `?pack-designs=roster` deep-links straight to one option; `?pack-designs=1` opens the first. */
-const initialVariantId = new URLSearchParams(window.location.search).get('pack-designs') ?? '';
+/** `?pack-designs=stage` deep-links straight to one option; `?pack-designs=1` opens the first. */
+const requestedVariantId = new URLSearchParams(window.location.search).get('pack-designs') ?? '';
+// The previous round's names, so old links keep working.
+const LEGACY_IDS: Record<string, string> = { roster: 'split', switcher: 'stage' };
+const initialVariantId = LEGACY_IDS[requestedVariantId] ?? requestedVariantId;
 
 const PackDesignsPage = () => {
   const demo = useDemoPacks();
@@ -72,9 +59,7 @@ const PackDesignsPage = () => {
     <>
       <AppBackdrop />
 
-      <DemoModal isOpen={isOpen} onRequestClose={() => setOpen(false)} canProceed={!!demo.activePack?.signatures}>
-        {variant?.render(demo)}
-      </DemoModal>
+      {variant && <variant.Component demo={demo} isOpen={isOpen} onRequestClose={() => setOpen(false)} />}
 
       {!isChromeVisible && (
         <button

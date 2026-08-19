@@ -3,6 +3,8 @@
  * `?pack-designs` branch in main.tsx) once a direction has been picked.
  *
  * Everything here is local, in-memory demo state: no IndexedDB, no image decoding.
+ * There is deliberately no way to manage an individual saved signature — a pack's
+ * signatures and initials are each handled as one set.
  */
 import { useCallback, useState } from 'react';
 import Modal from 'react-modal';
@@ -60,13 +62,9 @@ export const useDemoPacks = () => {
 
   const renameActive = useCallback((name: string) => updateActive((pack) => ({ ...pack, name })), [updateActive]);
 
-  const addFiles = useCallback(
-    (type: DemoAssetType, count: number) => updateActive((pack) => ({ ...pack, [type]: pack[type] + count })),
-    [updateActive],
-  );
-
-  const removeFile = useCallback(
-    (type: DemoAssetType) => updateActive((pack) => ({ ...pack, [type]: Math.max(0, pack[type] - 1) })),
+  // Choosing files replaces the whole set, exactly like the real modal: there is no per-file state.
+  const setFiles = useCallback(
+    (type: DemoAssetType, count: number) => updateActive((pack) => ({ ...pack, [type]: count })),
     [updateActive],
   );
 
@@ -99,8 +97,7 @@ export const useDemoPacks = () => {
     createPack,
     deletePack,
     renameActive,
-    addFiles,
-    removeFile,
+    setFiles,
     clearFiles,
     shuffleCounts,
     reset,
@@ -108,6 +105,13 @@ export const useDemoPacks = () => {
 };
 
 export type DemoPacks = ReturnType<typeof useDemoPacks>;
+
+/** Every option gets the same props, so the comparison page can swap them freely. */
+export interface OptionProps {
+  demo: DemoPacks;
+  isOpen: boolean;
+  onRequestClose: () => void;
+}
 
 /** A `<label>` styled however the option needs, wrapping a real (hidden) .png picker. */
 export const PngPicker = ({
@@ -141,7 +145,7 @@ export const PngPicker = ({
   </label>
 );
 
-/** Stand-in for a saved signature thumbnail, so file rails have something to show. */
+/** Stand-in for a saved signature, drawn straight onto the surface — no thumbnail frame. */
 export const SignatureTile = ({ seed, className }: { seed: number; className?: string }) => (
   <svg viewBox="0 0 48 24" aria-hidden className={className}>
     <path
@@ -156,22 +160,22 @@ export const SignatureTile = ({ seed, className }: { seed: number; className?: s
   </svg>
 );
 
-/** Stable keys for the fake thumbnails, so rails never key on an array index. */
+/** Stable keys for the fake previews, so rails never key on an array index. */
 export const TILE_KEYS = ['tile-1', 'tile-2', 'tile-3', 'tile-4', 'tile-5', 'tile-6', 'tile-7', 'tile-8'];
 
 /**
- * The real StarterModal chrome: same react-modal overlay, same 44rem panel, same welcome copy,
- * so each option is judged as a modal rather than as a page card.
+ * The real StarterModal overlay, nothing more. Each option owns its own panel: the whole
+ * point of this round is that the modal composition itself is part of the design.
  */
 export const DemoModal = ({
   isOpen,
   onRequestClose,
-  canProceed,
+  className,
   children,
 }: {
   isOpen: boolean;
   onRequestClose: () => void;
-  canProceed: boolean;
+  className: string;
   children: React.ReactNode;
 }) => (
   <Modal
@@ -182,36 +186,9 @@ export const DemoModal = ({
     // The comparison chrome sits above the overlay and has to stay usable, so the app is not aria-hidden here.
     ariaHideApp={false}
     overlayClassName="fixed inset-0 bg-slate-800 bg-opacity-75 transition-opacity duration-500 opacity-0"
-    className="absolute left-1/2 top-1/2 max-h-[95vh] w-[90vw] -translate-x-1/2 -translate-y-1/2 transform overflow-auto rounded-lg bg-white p-8 shadow-lg outline-none lg:w-[44rem]"
+    className={`absolute left-1/2 top-1/2 max-h-[95vh] w-[90vw] -translate-x-1/2 -translate-y-1/2 transform outline-none ${className}`}
     closeTimeoutMS={500}
   >
-    <h1 className="text-3xl font-bold text-slate-800">Welcome! 🖋️</h1>
-    <p className="mt-2 text-slate-800">
-      A simple app for &quot;signing&quot; PDFs.{' '}
-      <span title="Feel free to open the network tab and check 😉" className="text-slate-600">
-        Everything runs in your browser, so your signatures never leave this device ✨
-      </span>
-    </p>
-    <p className="mb-6 mt-1 text-sm text-slate-500">
-      Made by{' '}
-      <a href="https://aprets.me" className="underline">
-        aprets
-      </a>{' '}
-      ·{' '}
-      <a href="https://github.com/aprets/signatur" className="underline">
-        source on GitHub
-      </a>
-    </p>
     {children}
-    <div className="mt-6 flex justify-center">
-      <button
-        type="button"
-        disabled={!canProceed}
-        title={canProceed ? 'Preview only' : 'Add at least one signature to this pack first'}
-        className="w-36 rounded bg-violet-500 px-4 py-2 font-bold text-white hover:bg-violet-700 active:bg-violet-800 disabled:bg-gray-300"
-      >
-        Let&apos;s Go 🚀
-      </button>
-    </div>
   </Modal>
 );
