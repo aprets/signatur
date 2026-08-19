@@ -2,19 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import Loader from '../loader';
 import { composePage } from '../pdf/compositor';
 import renderPreviewPage from '../pdf/preview';
-import type { PdfDocumentState, PdfPageMeta, SignType, SignaturePlacement } from '../pdf/types';
+import type { NewPlacement, PdfDocumentState, PdfPageMeta, Placement, PlacementTool } from '../pdf/types';
 
 interface PageCanvasProps {
   initials: HTMLImageElement[];
   isRenderActive: boolean;
   nextAssetIndex: number;
-  onPlacement: (placement: Omit<SignaturePlacement, 'id'>) => void;
+  onPlacement: (placement: NewPlacement) => void;
   onPreviewReady: (pageIndex: number) => void;
   pageMeta: PdfPageMeta;
   pdfDocument: PdfDocumentState;
+  pendingFontSizePt: number;
   pendingHeightPt: number;
-  placements: SignaturePlacement[];
-  signType: SignType;
+  pendingText: string;
+  placementTool: PlacementTool;
+  placements: Placement[];
   signatures: HTMLImageElement[];
 }
 
@@ -26,9 +28,11 @@ const PageCanvas = ({
   onPreviewReady,
   pageMeta,
   pdfDocument,
+  pendingFontSizePt,
   pendingHeightPt,
+  pendingText,
+  placementTool,
   placements,
-  signType,
   signatures,
 }: PageCanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,7 +41,7 @@ const PageCanvas = ({
   const [containerWidth, setContainerWidth] = useState(0);
   const [isRendering, setIsRendering] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
-  const [hoverPlacement, setHoverPlacement] = useState<SignaturePlacement | null>(null);
+  const [hoverPlacement, setHoverPlacement] = useState<Placement | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -60,6 +64,10 @@ const PageCanvas = ({
     setHoverPlacement(null);
     setRenderError(null);
   }, [pageMeta.pageIndex, pdfDocument]);
+
+  useEffect(() => {
+    setHoverPlacement(null);
+  }, [nextAssetIndex, pendingFontSizePt, pendingHeightPt, pendingText, placementTool]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -117,21 +125,32 @@ const PageCanvas = ({
   }, [baseCanvas, hoverPlacement, initials, pageMeta, placements, signatures]);
 
   const handlePointerMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    const assetArray = signType === 'signature' ? signatures : initials;
-    if (!assetArray.length) return;
+    if (placementTool === 'text') {
+      if (!pendingText.trim()) return;
+    } else {
+      const assetArray = placementTool === 'signature' ? signatures : initials;
+      if (!assetArray.length) return;
+    }
 
     const rect = event.currentTarget.getBoundingClientRect();
     const normalizedX = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
     const normalizedY = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
-    setHoverPlacement({
+    const position = {
       id: 'hover',
       pageIndex: pageMeta.pageIndex,
-      type: signType,
-      assetIndex: nextAssetIndex,
-      heightPt: pendingHeightPt,
       centerXPt: normalizedX * pageMeta.widthPt,
       centerYFromTopPt: normalizedY * pageMeta.heightPt,
-    });
+    };
+    setHoverPlacement(
+      placementTool === 'text'
+        ? { ...position, type: 'text', text: pendingText, fontSizePt: pendingFontSizePt }
+        : {
+            ...position,
+            type: placementTool,
+            assetIndex: nextAssetIndex,
+            heightPt: pendingHeightPt,
+          },
+    );
   };
 
   const handlePointerLeave = () => {
@@ -139,20 +158,31 @@ const PageCanvas = ({
   };
 
   const handlePointerUp = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    const assetArray = signType === 'signature' ? signatures : initials;
-    if (!assetArray.length) return;
+    if (placementTool === 'text') {
+      if (!pendingText.trim()) return;
+    } else {
+      const assetArray = placementTool === 'signature' ? signatures : initials;
+      if (!assetArray.length) return;
+    }
 
     const rect = event.currentTarget.getBoundingClientRect();
     const normalizedX = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
     const normalizedY = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
-    onPlacement({
+    const position = {
       pageIndex: pageMeta.pageIndex,
-      type: signType,
-      assetIndex: nextAssetIndex,
-      heightPt: pendingHeightPt,
       centerXPt: normalizedX * pageMeta.widthPt,
       centerYFromTopPt: normalizedY * pageMeta.heightPt,
-    });
+    };
+    onPlacement(
+      placementTool === 'text'
+        ? { ...position, type: 'text', text: pendingText, fontSizePt: pendingFontSizePt }
+        : {
+            ...position,
+            type: placementTool,
+            assetIndex: nextAssetIndex,
+            heightPt: pendingHeightPt,
+          },
+    );
   };
 
   const fallbackHeightPx = (Math.max(containerWidth, 1) * pageMeta.heightPt) / pageMeta.widthPt;
