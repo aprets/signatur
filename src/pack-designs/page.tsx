@@ -1,145 +1,156 @@
 /**
- * Temporary side-by-side preview of three signature pack UI treatments, reachable at `?pack-designs=1`.
- * Delete this folder and the `?pack-designs` branch in main.tsx once a direction has been picked.
+ * Temporary comparison of signature pack UI treatments, reachable at `?pack-designs=1`.
+ * One real modal at a time, over a mock of the app behind it. Delete this folder and the
+ * `?pack-designs` branch in main.tsx once a direction has been picked.
  */
-import { DemoModalFrame, useDemoPacks } from './shared';
-import OptionA from './option-a';
-import OptionB from './option-b';
-import OptionC from './option-c';
+import { useState } from 'react';
+import { DemoModal, useDemoPacks } from './shared';
+import OptionLedger from './option-ledger';
+import OptionRoster from './option-roster';
+import OptionSwitcher from './option-switcher';
+import OptionFocus from './option-focus';
+import type { DemoPacks } from './shared';
 
-const OPTION_LINKS = [
-  { id: 'option-a', letter: 'A', name: 'Pack tabs' },
-  { id: 'option-b', letter: 'B', name: 'Pack list & detail' },
-  { id: 'option-c', letter: 'C', name: 'Compact pack bar' },
+const VARIANTS = [
+  {
+    id: 'ledger',
+    name: 'Ledger',
+    lineage: 'from B',
+    idea: 'Two panes in one bordered box: a pack table on the left whose Sig/Init columns share a single grid with the header, and a detail side that is just a name, a divider and two asset rows — no inner cards. Delete moved off the list rows (no hover-only controls) and confirms in an overlay pinned over the name field.',
+    render: (demo: DemoPacks) => <OptionLedger demo={demo} />,
+  },
+  {
+    id: 'roster',
+    name: 'Roster',
+    lineage: 'from B',
+    idea: 'Same two panes, but counts become pictures: each list row previews its own signatures, and the detail side is a fixed 5-slot thumbnail grid per type with a permanent leading Add tile and per-file remove. Deleting a pack takes over the New pack row.',
+    render: (demo: DemoPacks) => <OptionRoster demo={demo} />,
+  },
+  {
+    id: 'switcher',
+    name: 'Switcher',
+    lineage: 'from C',
+    idea: 'The whole pack concept collapses into one 44px bar: name, counts, picker. The pack list and every destructive action live in overlays, so the body below never moves. Uploads are two dividered lines with an inline thumbnail strip.',
+    render: (demo: DemoPacks) => <OptionSwitcher demo={demo} />,
+  },
+  {
+    id: 'focus',
+    name: 'Focus',
+    lineage: 'from C',
+    idea: 'Inverts the hierarchy: the active pack is a rename-in-place title with its two upload wells side by side, and pack management is demoted to a quiet single-line index at the bottom. Least chrome, no popovers, no list pane.',
+    render: (demo: DemoPacks) => <OptionFocus demo={demo} />,
+  },
 ];
 
-const OptionShell = ({
-  id,
-  letter,
-  name,
-  idea,
-  children,
-}: {
-  id: string;
-  letter: string;
-  name: string;
-  idea: string;
-  children: React.ReactNode;
-}) => (
-  <section id={id} className="flex w-full scroll-mt-20 flex-col items-center">
-    <div className="mb-3 w-full max-w-[44rem]">
-      <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-800 text-sm font-bold text-white">
-          {letter}
-        </span>
-        <h2 className="text-lg font-semibold text-slate-800">{name}</h2>
-      </div>
-      <p className="mt-1 text-sm text-slate-600">{idea}</p>
+/** A cheap stand-in for the real app, so the modal is judged as an overlay and not as a page card. */
+const AppBackdrop = () => (
+  <div className="flex h-screen flex-col">
+    <div className="flex h-16 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4">
+      <div className="h-10 w-64 rounded bg-slate-200" />
+      <div className="ml-auto h-10 w-72 rounded bg-slate-200" />
+      <div className="h-10 w-40 rounded bg-violet-300" />
     </div>
-    {children}
-  </section>
+    <div className="flex flex-grow justify-center overflow-hidden bg-slate-200 p-6">
+      <div className="h-full w-full max-w-3xl rounded bg-white shadow" />
+    </div>
+  </div>
 );
 
+/** `?pack-designs=roster` deep-links straight to one option; `?pack-designs=1` opens the first. */
+const initialVariantId = new URLSearchParams(window.location.search).get('pack-designs') ?? '';
+
 const PackDesignsPage = () => {
-  const optionA = useDemoPacks();
-  const optionB = useDemoPacks();
-  const optionC = useDemoPacks();
-  const options = [optionA, optionB, optionC];
+  const demo = useDemoPacks();
+  const [variantId, setVariantId] = useState(
+    VARIANTS.some((candidate) => candidate.id === initialVariantId) ? initialVariantId : VARIANTS[0]?.id ?? '',
+  );
+  const [isOpen, setOpen] = useState(true);
+  const [isChromeVisible, setChromeVisible] = useState(true);
+  const variant = VARIANTS.find((candidate) => candidate.id === variantId) ?? VARIANTS[0];
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[52rem] flex-wrap items-center gap-x-4 gap-y-2 px-6 py-3">
-          <p className="text-sm font-semibold text-slate-800">Signature packs — design options</p>
-          <nav className="flex items-center gap-1">
-            {OPTION_LINKS.map((link) => (
-              <a
-                key={link.id}
-                href={`#${link.id}`}
-                className="rounded-md px-2 py-1 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+    <>
+      <AppBackdrop />
+
+      <DemoModal isOpen={isOpen} onRequestClose={() => setOpen(false)} canProceed={!!demo.activePack?.signatures}>
+        {variant?.render(demo)}
+      </DemoModal>
+
+      {!isChromeVisible && (
+        <button
+          type="button"
+          onClick={() => setChromeVisible(true)}
+          className="fixed left-4 top-4 z-50 h-8 rounded-md bg-slate-900/90 px-3 text-xs font-semibold text-slate-200 hover:bg-slate-900"
+        >
+          Show controls
+        </button>
+      )}
+
+      <div
+        className={`fixed inset-x-0 top-0 z-50 border-b border-slate-700 bg-slate-900/95 text-slate-200 backdrop-blur ${
+          isChromeVisible ? '' : 'hidden'
+        }`}
+      >
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2">
+          <p className="text-sm font-semibold text-white">Signature packs</p>
+          <div className="flex h-9 items-center gap-1 rounded-lg bg-slate-800 p-1">
+            {VARIANTS.map((candidate) => (
+              <button
+                key={candidate.id}
+                type="button"
+                aria-pressed={candidate.id === variantId}
+                onClick={() => {
+                  setVariantId(candidate.id);
+                  setOpen(true);
+                  window.history.replaceState(null, '', `?pack-designs=${candidate.id}`);
+                }}
+                className={`h-7 rounded-md px-3 text-sm font-semibold transition-colors ${
+                  candidate.id === variantId ? 'bg-white text-violet-700' : 'text-slate-300 hover:text-white'
+                }`}
               >
-                {link.letter} · {link.name}
-              </a>
+                {candidate.name}
+                <span className="ml-1.5 text-xs font-normal opacity-60">{candidate.lineage}</span>
+              </button>
             ))}
-          </nav>
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                for (const option of options) option.shuffleCounts();
-              }}
-              className="h-8 rounded-md bg-slate-800 px-3 text-xs font-semibold text-white hover:bg-slate-700"
+              onClick={demo.shuffleCounts}
+              title="Randomise every count, up to three digits"
+              className="h-8 rounded-md bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600"
             >
               Shuffle counts
             </button>
             <button
               type="button"
-              onClick={() => {
-                for (const option of options) option.reset();
-              }}
-              className="h-8 rounded-md px-3 text-xs font-semibold text-slate-600 ring-1 ring-inset ring-slate-300 hover:bg-slate-50"
+              onClick={demo.reset}
+              className="h-8 rounded-md px-3 text-xs font-semibold text-slate-300 ring-1 ring-inset ring-slate-600 hover:bg-slate-800"
             >
               Reset
             </button>
+            <button
+              type="button"
+              onClick={() => setOpen((current) => !current)}
+              className="h-8 w-28 rounded-md px-3 text-xs font-semibold text-slate-300 ring-1 ring-inset ring-slate-600 hover:bg-slate-800"
+            >
+              {isOpen ? 'Close modal' : 'Open modal'}
+            </button>
+            <button
+              type="button"
+              title="Hide this bar to see the modal on its own"
+              onClick={() => setChromeVisible(false)}
+              className="h-8 rounded-md px-3 text-xs font-semibold text-slate-300 ring-1 ring-inset ring-slate-600 hover:bg-slate-800"
+            >
+              Hide
+            </button>
           </div>
-        </div>
-      </header>
-
-      <main className="mx-auto flex max-w-[52rem] flex-col items-center gap-14 px-6 py-10">
-        <div className="w-full max-w-[44rem] rounded-lg border border-slate-200 bg-white p-5">
-          <h1 className="text-xl font-bold text-slate-800">Pick a treatment for the pack + upload UI</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Each option below is the real modal chrome wrapped around a different pack control. Everything is local demo
-            state — switch packs, rename, create, delete, add or remove files, and use{' '}
-            <span className="font-semibold text-slate-800">Shuffle counts</span> to watch what the counts do. Nothing is
-            saved and no images are decoded.
-          </p>
-          <p className="mt-2 text-sm text-slate-600">
-            All three keep every row at a fixed height, so the panel never grows or collapses as counts change or packs
-            come and go.
+          <p className="w-full text-xs leading-5 text-slate-400">
+            <span className="font-semibold text-slate-200">{variant?.name}</span> — {variant?.idea}
           </p>
         </div>
-
-        <OptionShell
-          id="option-a"
-          letter="A"
-          name="Pack tabs"
-          idea="Packs are a segmented tab strip, echoing the toolbar's tool and export switches. The active tab, its editable name and its two upload cards read top-to-bottom as one panel; counts live in fixed-width badges."
-        >
-          <DemoModalFrame>
-            <OptionA demo={optionA} />
-          </DemoModalFrame>
-        </OptionShell>
-
-        <OptionShell
-          id="option-b"
-          letter="B"
-          name="Pack list & detail"
-          idea="A packs list on the left with a Sig/Init count column, and the selected pack's detail on the right. Delete lives on the list row, and each asset shows a fixed-height thumbnail rail with an overflow tile."
-        >
-          <DemoModalFrame>
-            <OptionB demo={optionB} />
-          </DemoModalFrame>
-        </OptionShell>
-
-        <OptionShell
-          id="option-c"
-          letter="C"
-          name="Compact pack bar"
-          idea="One split control: pack picker, rename and an actions menu in a single 44px row. Menus and confirmations are overlays, so nothing below them ever moves; the uploads become two dense lines."
-        >
-          <DemoModalFrame>
-            <OptionC demo={optionC} />
-          </DemoModalFrame>
-        </OptionShell>
-
-        <p className="w-full max-w-[44rem] text-xs text-slate-500">
-          Scaffolding only: delete <code className="rounded bg-slate-200 px-1 py-0.5">src/pack-designs</code> and the{' '}
-          <code className="rounded bg-slate-200 px-1 py-0.5">?pack-designs</code> branch in{' '}
-          <code className="rounded bg-slate-200 px-1 py-0.5">src/main.tsx</code> once an option is chosen.
-        </p>
-      </main>
-    </div>
+      </div>
+    </>
   );
 };
 
