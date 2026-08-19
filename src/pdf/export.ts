@@ -1,5 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
-import type { PdfDocumentState, SignaturePlacement } from './types';
+import type { PdfDocumentState, Placement } from './types';
 import { drawPlacementOverlays } from './compositor';
 
 const EXPORT_SCALE = 300 / 72;
@@ -30,7 +30,7 @@ const saveFlattenedPdf = async ({
   onProgress,
 }: {
   pdfDocument: PdfDocumentState;
-  placements: SignaturePlacement[];
+  placements: Placement[];
   signatures: HTMLImageElement[];
   initials: HTMLImageElement[];
   onProgress?: (currentPage: number, totalPages: number) => void;

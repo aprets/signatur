@@ -1,9 +1,9 @@
-import type { PdfPageMeta, SignaturePlacement } from './types';
+import type { PdfPageMeta, Placement } from './types';
 
 interface DrawPlacementOverlaysOptions {
   canvas: HTMLCanvasElement;
   pageMeta: PdfPageMeta;
-  placements: SignaturePlacement[];
+  placements: Placement[];
   signatures: HTMLImageElement[];
   initials: HTMLImageElement[];
 }
@@ -23,15 +23,27 @@ export const drawPlacementOverlays = ({
   if (!context) return;
 
   for (const placement of placements) {
-    const sourceImages = placement.type === 'signature' ? signatures : initials;
-    const asset = sourceImages[placement.assetIndex % sourceImages.length];
-    if (asset?.height) {
-      const xPx = (placement.centerXPt / pageMeta.widthPt) * canvas.width;
-      const yPx = (placement.centerYFromTopPt / pageMeta.heightPt) * canvas.height;
-      const heightPx = (placement.heightPt / pageMeta.heightPt) * canvas.height;
-      const widthPx = heightPx * (asset.width / asset.height);
+    const xPx = (placement.centerXPt / pageMeta.widthPt) * canvas.width;
+    const yPx = (placement.centerYFromTopPt / pageMeta.heightPt) * canvas.height;
 
-      context.drawImage(asset, xPx - widthPx / 2, yPx - heightPx / 2, widthPx, heightPx);
+    if (placement.type === 'text') {
+      const fontSizePx = (placement.fontSizePt / pageMeta.heightPt) * canvas.height;
+      context.save();
+      context.fillStyle = '#111827';
+      context.font = `${fontSizePx}px Helvetica, Arial, sans-serif`;
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText(placement.text, xPx, yPx);
+      context.restore();
+    } else {
+      const sourceImages = placement.type === 'signature' ? signatures : initials;
+      const asset = sourceImages[placement.assetIndex % sourceImages.length];
+      if (asset?.height) {
+        const heightPx = (placement.heightPt / pageMeta.heightPt) * canvas.height;
+        const widthPx = heightPx * (asset.width / asset.height);
+
+        context.drawImage(asset, xPx - widthPx / 2, yPx - heightPx / 2, widthPx, heightPx);
+      }
     }
   }
 };
