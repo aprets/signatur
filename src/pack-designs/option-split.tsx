@@ -15,7 +15,6 @@ const VISIBLE_TILES = 4;
 const AssetWell = ({
   type,
   title,
-  hint,
   count,
   isPrimary,
   onFiles,
@@ -23,7 +22,6 @@ const AssetWell = ({
 }: {
   type: DemoAssetType;
   title: string;
-  hint: string;
   count: number;
   isPrimary: boolean;
   onFiles: (count: number) => void;
@@ -32,7 +30,7 @@ const AssetWell = ({
   <div>
     <div className="mb-2 flex h-5 items-baseline gap-2">
       <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-      <p className="min-w-0 flex-1 truncate text-xs text-slate-400">{hint}</p>
+      <span className="flex-1" />
       <button
         type="button"
         disabled={!count}
@@ -60,11 +58,13 @@ const AssetWell = ({
           {TILE_KEYS.slice(0, Math.min(count, VISIBLE_TILES)).map((key, index) => (
             <SignatureTile key={key} seed={index + count} className="h-10 w-[4.5rem] shrink-0" />
           ))}
-          <span className="ml-auto shrink-0 text-right">
-            <span className="block text-xs tabular-nums text-violet-400">
+          <span className="ml-auto flex shrink-0 items-center gap-3">
+            <span className="text-xs tabular-nums text-violet-400">
               {count} {count === 1 ? 'file' : 'files'}
             </span>
-            <span className="block text-sm font-semibold text-violet-700">Replace…</span>
+            <span className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-violet-700 shadow-sm ring-1 ring-violet-100">
+              Replace
+            </span>
           </span>
         </>
       ) : (
@@ -87,7 +87,7 @@ const OptionSplit = ({ demo, isOpen, onRequestClose }: OptionProps) => {
     >
       <div className="flex w-56 shrink-0 flex-col bg-violet-700 lg:w-64">
         <div className="px-6 pb-6 pt-7">
-          <p className="text-lg font-bold tracking-tight text-white">Signatur 🖋️</p>
+          <p className="text-lg font-bold tracking-tight text-white">Sign</p>
           <p className="mt-2 text-[13px] leading-5 text-violet-200">
             Sign PDFs. Everything runs in your browser, so your data is never sent to any servers.
           </p>
@@ -168,7 +168,6 @@ const OptionSplit = ({ demo, isOpen, onRequestClose }: OptionProps) => {
           <AssetWell
             type="signatures"
             title="Signatures"
-            hint="a few variations look most natural"
             count={activePack?.signatures ?? 0}
             isPrimary={!canProceed}
             onFiles={(count) => demo.setFiles('signatures', count)}
@@ -177,7 +176,6 @@ const OptionSplit = ({ demo, isOpen, onRequestClose }: OptionProps) => {
           <AssetWell
             type="initials"
             title="Initials"
-            hint="optional, for initialling pages"
             count={activePack?.initials ?? 0}
             isPrimary={false}
             onFiles={(count) => demo.setFiles('initials', count)}
