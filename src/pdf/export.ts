@@ -2,9 +2,9 @@ import { PDFDocument } from 'pdf-lib';
 import type { PdfDocumentState, SignaturePlacement } from './types';
 import { drawPlacementOverlays } from './compositor';
 
-const EXPORT_SCALE = 144 / 72;
-const EXPORT_MAX_LONG_EDGE_PX = 2200;
-const EXPORT_JPEG_QUALITY = 0.9;
+const EXPORT_SCALE = 300 / 72;
+const EXPORT_MAX_LONG_EDGE_PX = 3600;
+const EXPORT_JPEG_QUALITY = 0.5;
 const EXPORT_CONCURRENCY = 3;
 
 const canvasToBlob = async (canvas: HTMLCanvasElement, type: string, quality?: number) =>
