@@ -184,7 +184,7 @@ const StarterModal = ({
     !hasPlacements ||
     // eslint-disable-next-line no-alert
     window.confirm(
-      'Changing signature packs will remove the signatures and initials already placed on this PDF. Continue?',
+      'Changing the active signatures or initials will remove everything already placed on this PDF. Continue?',
     );
 
   const handlePackChange = async (nextPackId: string) => {
