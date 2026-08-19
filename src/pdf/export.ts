@@ -4,7 +4,7 @@ import { drawPlacementOverlays } from './compositor';
 
 const EXPORT_SCALE = 144 / 72;
 const EXPORT_MAX_LONG_EDGE_PX = 2200;
-const EXPORT_JPEG_QUALITY = 0.82;
+const EXPORT_JPEG_QUALITY = 0.9;
 const EXPORT_CONCURRENCY = 3;
 
 const canvasToBlob = async (canvas: HTMLCanvasElement, type: string, quality?: number) =>
