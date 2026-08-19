@@ -1,6 +1,7 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
-export type SignType = 'signature' | 'initial';
+export type ImagePlacementType = 'signature' | 'initial';
+export type PlacementTool = ImagePlacementType | 'text';
 
 export interface PdfPageMeta {
   pageIndex: number;
@@ -15,12 +16,24 @@ export interface PdfDocumentState {
   proxy: PDFDocumentProxy;
 }
 
-export interface SignaturePlacement {
+interface PlacementBase {
   id: string;
   pageIndex: number;
-  type: SignType;
-  assetIndex: number;
   centerXPt: number;
   centerYFromTopPt: number;
+}
+
+export interface ImagePlacement extends PlacementBase {
+  type: ImagePlacementType;
+  assetIndex: number;
   heightPt: number;
 }
+
+export interface TextPlacement extends PlacementBase {
+  type: 'text';
+  text: string;
+  fontSizePt: number;
+}
+
+export type Placement = ImagePlacement | TextPlacement;
+export type NewPlacement = Omit<ImagePlacement, 'id'> | Omit<TextPlacement, 'id'>;
