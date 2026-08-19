@@ -83,13 +83,13 @@ const OptionSplit = ({ demo, isOpen, onRequestClose }: OptionProps) => {
     <DemoModal
       isOpen={isOpen}
       onRequestClose={onRequestClose}
-      className="flex min-h-[30rem] overflow-hidden rounded-2xl bg-white shadow-2xl lg:w-[54rem]"
+      className="isolate flex min-h-[30rem] overflow-hidden rounded-2xl bg-violet-700 shadow-2xl ring-1 ring-black/10 lg:w-[54rem]"
     >
       <div className="flex w-56 shrink-0 flex-col bg-violet-700 lg:w-64">
         <div className="px-6 pb-6 pt-7">
           <p className="text-lg font-bold tracking-tight text-white">Signatur 🖋️</p>
           <p className="mt-2 text-[13px] leading-5 text-violet-200">
-            Sign PDFs right here. Nothing is uploaded — your signatures never leave this browser.
+            Sign PDFs. Everything runs in your browser, so your data is never sent to any servers.
           </p>
         </div>
 
@@ -103,24 +103,38 @@ const OptionSplit = ({ demo, isOpen, onRequestClose }: OptionProps) => {
                 // Keeps a freshly created or newly selected pack visible when the list scrolls.
                 ref={isActive ? (node) => node?.scrollIntoView({ block: 'nearest' }) : null}
               >
-                <button
-                  type="button"
-                  aria-pressed={isActive}
-                  onClick={() => {
-                    setConfirmingDelete(false);
-                    demo.selectPack(pack.id);
-                  }}
-                  className={`flex h-11 w-full items-center gap-2 border-l-[3px] px-6 text-left text-sm ${
-                    isActive
-                      ? 'border-white bg-violet-800 font-semibold text-white'
-                      : 'border-transparent text-violet-100 hover:bg-violet-600/60'
-                  }`}
-                >
-                  <span className="min-w-0 flex-1 truncate">{pack.name}</span>
-                  {!pack.signatures && !pack.initials && (
-                    <span className="shrink-0 text-[11px] font-normal text-violet-300">empty</span>
-                  )}
-                </button>
+                {isActive ? (
+                  <label className="flex h-11 w-full items-center gap-2 border-l-[3px] border-white bg-violet-800 px-6">
+                    <span className="sr-only">Pack name</span>
+                    <input
+                      type="text"
+                      value={pack.name}
+                      title="Rename pack"
+                      onChange={(event) => demo.renameActive(event.target.value)}
+                      onBlur={(event) => {
+                        if (!event.target.value.trim()) demo.renameActive('Untitled pack');
+                      }}
+                      className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-violet-300"
+                    />
+                    {!pack.signatures && !pack.initials && (
+                      <span className="shrink-0 text-[11px] font-normal text-violet-300">empty</span>
+                    )}
+                  </label>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmingDelete(false);
+                      demo.selectPack(pack.id);
+                    }}
+                    className="flex h-11 w-full items-center gap-2 border-l-[3px] border-transparent px-6 text-left text-sm text-violet-100 hover:bg-violet-600/60"
+                  >
+                    <span className="min-w-0 flex-1 truncate">{pack.name}</span>
+                    {!pack.signatures && !pack.initials && (
+                      <span className="shrink-0 text-[11px] font-normal text-violet-300">empty</span>
+                    )}
+                  </button>
+                )}
               </li>
             );
           })}
@@ -144,29 +158,13 @@ const OptionSplit = ({ demo, isOpen, onRequestClose }: OptionProps) => {
           </a>{' '}
           ·{' '}
           <a href="https://github.com/aprets/signatur" className="underline hover:text-white">
-            source
+            GitHub
           </a>
         </p>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="px-8 pb-6 pt-7">
-          <label htmlFor="split-name" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-            Signing as
-          </label>
-          <input
-            id="split-name"
-            type="text"
-            value={activePack?.name ?? ''}
-            onChange={(event) => demo.renameActive(event.target.value)}
-            onBlur={(event) => {
-              if (!event.target.value.trim()) demo.renameActive('Untitled pack');
-            }}
-            className="-ml-2 mt-0.5 block w-[calc(100%+1rem)] rounded-lg border border-transparent px-2 py-0.5 text-2xl font-bold tracking-tight text-slate-900 hover:border-slate-200 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
-          />
-        </div>
-
-        <div className="space-y-6 px-8">
+      <div className="flex min-w-0 flex-1 flex-col bg-white">
+        <div className="space-y-6 px-8 pt-8">
           <AssetWell
             type="signatures"
             title="Signatures"
