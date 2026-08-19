@@ -26,149 +26,6 @@ const PLACEMENT_TOOLS: { tool: PlacementTool; label: string }[] = [
   { tool: 'initial', label: 'Initial' },
   { tool: 'text', label: 'Text' },
 ];
-const SHOW_TEXT_TOOLBAR_COMPARISON = true;
-
-const TextToolbarComparison = () => {
-  const [tool, setTool] = useState<PlacementTool>('text');
-  const [comparisonText, setComparisonText] = useState('Director');
-  const isText = tool === 'text';
-  const size = isText ? '12 pt' : '25 mm';
-
-  const toolButtons = PLACEMENT_TOOLS.map(({ tool: option, label }) => (
-    <button
-      key={option}
-      type="button"
-      aria-pressed={tool === option}
-      onClick={() => setTool(option)}
-      className={`h-8 rounded-md px-3 text-sm font-semibold transition-colors ${
-        tool === option
-          ? 'bg-white text-violet-700 shadow-sm ring-1 ring-slate-900/5'
-          : 'text-slate-600 hover:text-slate-900'
-      }`}
-    >
-      {label}
-    </button>
-  ));
-
-  const rangeClass =
-    'h-2 min-w-0 flex-1 cursor-pointer appearance-none rounded-lg bg-gray-200 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:bg-violet-500 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-none [&::-webkit-slider-thumb]:bg-violet-500';
-
-  return (
-    <main className="min-h-screen bg-slate-100 px-6 py-8 text-slate-900">
-      <div className="mx-auto max-w-[1500px] space-y-8">
-        <div>
-          <h1 className="text-lg font-semibold">Text toolbar comparison</h1>
-          <p className="mt-1 text-sm text-slate-500">Change mode in any header. All three update together.</p>
-        </div>
-
-        <section>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">A · Fixed swap slot</p>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex min-w-[1050px] items-center justify-between gap-3 px-3 py-2">
-              <div className="flex shrink-0 items-center gap-3">
-                <button type="button" className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
-                  <Cog8ToothIcon className="h-6 w-6" />
-                </button>
-                <button type="button" className="h-10 rounded-lg bg-violet-50 px-4 font-semibold text-violet-700">Choose PDF</button>
-              </div>
-              <div className="flex flex-1 items-center justify-center gap-3">
-                <div className="flex h-10 shrink-0 items-center gap-1 rounded-lg bg-slate-100 p-1">{toolButtons}</div>
-                <div className="relative h-10 w-44 shrink-0">
-                  <span className={`absolute inset-0 flex items-center justify-end text-sm text-slate-500 transition-opacity ${isText ? 'opacity-0' : 'opacity-100'}`}>
-                    {tool === 'initial' ? 'Initials height' : 'Signature height'}
-                  </span>
-                  <input
-                    value={comparisonText}
-                    onChange={(event) => setComparisonText(event.target.value)}
-                    placeholder="Name, date or reference"
-                    className={`absolute inset-0 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm transition-opacity focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 ${isText ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-                  />
-                </div>
-                <label className="flex h-10 w-40 shrink-0 items-center gap-2">
-                  <input type="range" className={rangeClass} min="1" max="100" defaultValue={isText ? 12 : 25} />
-                  <span className="w-14 text-right text-sm tabular-nums text-slate-500">{size}</span>
-                </label>
-                <button type="button" className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-300 text-white"><ArrowUturnLeftIcon className="h-6 w-6" /></button>
-                <button type="button" className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-300 text-white"><TrashIcon className="h-6 w-6" /></button>
-              </div>
-              <button type="button" className="flex h-10 min-w-28 items-center justify-center gap-2 rounded-lg bg-gray-300 px-3 font-bold text-white">
-                <ArrowDownTrayIcon className="h-6 w-6" /><span className="text-sm">Save</span>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">B · One compact control</p>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex min-w-[980px] items-center justify-between gap-3 px-3 py-2">
-              <div className="flex shrink-0 items-center gap-3">
-                <button type="button" className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700"><Cog8ToothIcon className="h-6 w-6" /></button>
-                <button type="button" className="h-10 rounded-lg bg-violet-50 px-4 font-semibold text-violet-700">Choose PDF</button>
-              </div>
-              <div className="flex flex-1 items-center justify-center gap-3">
-                <div className="flex h-10 shrink-0 items-center gap-1 rounded-lg bg-slate-100 p-1">{toolButtons}</div>
-                <div className="flex h-10 w-[22rem] shrink-0 items-center rounded-lg border border-slate-300 bg-white focus-within:border-violet-500 focus-within:ring-1 focus-within:ring-violet-500">
-                  {isText ? (
-                    <input
-                      value={comparisonText}
-                      onChange={(event) => setComparisonText(event.target.value)}
-                      placeholder="Name, date or reference"
-                      className="min-w-0 flex-1 bg-transparent px-3 text-sm focus:outline-none"
-                    />
-                  ) : (
-                    <span className="min-w-0 flex-1 px-3 text-sm text-slate-500">{tool === 'initial' ? 'Initials height' : 'Signature height'}</span>
-                  )}
-                  <input type="range" className={`${rangeClass} max-w-28`} min="1" max="100" defaultValue={isText ? 12 : 25} />
-                  <span className="w-16 px-2 text-right text-sm tabular-nums text-slate-500">{size}</span>
-                </div>
-                <button type="button" className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-300 text-white"><ArrowUturnLeftIcon className="h-6 w-6" /></button>
-                <button type="button" className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-300 text-white"><TrashIcon className="h-6 w-6" /></button>
-              </div>
-              <button type="button" className="flex h-10 min-w-28 items-center justify-center gap-2 rounded-lg bg-gray-300 px-3 font-bold text-white"><ArrowDownTrayIcon className="h-6 w-6" /><span className="text-sm">Save</span></button>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">C · Context row</p>
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="min-w-[900px]">
-              <div className="flex items-center justify-between gap-3 px-3 py-2">
-                <div className="flex shrink-0 items-center gap-3">
-                  <button type="button" className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700"><Cog8ToothIcon className="h-6 w-6" /></button>
-                  <button type="button" className="h-10 rounded-lg bg-violet-50 px-4 font-semibold text-violet-700">Choose PDF</button>
-                </div>
-                <div className="flex h-10 shrink-0 items-center gap-1 rounded-lg bg-slate-100 p-1">{toolButtons}</div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <button type="button" className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-300 text-white"><ArrowUturnLeftIcon className="h-6 w-6" /></button>
-                  <button type="button" className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-300 text-white"><TrashIcon className="h-6 w-6" /></button>
-                  <button type="button" className="flex h-10 min-w-28 items-center justify-center gap-2 rounded-lg bg-gray-300 px-3 font-bold text-white"><ArrowDownTrayIcon className="h-6 w-6" /><span className="text-sm">Save</span></button>
-                </div>
-              </div>
-              <div className="flex h-12 items-center justify-center gap-3 border-t border-slate-100 bg-slate-50 px-3">
-                {isText ? (
-                  <input
-                    value={comparisonText}
-                    onChange={(event) => setComparisonText(event.target.value)}
-                    placeholder="Name, date or reference"
-                    className="h-9 w-72 rounded-lg border border-slate-300 px-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                  />
-                ) : (
-                  <span className="w-72 text-right text-sm text-slate-500">{tool === 'initial' ? 'Initials height' : 'Signature height'}</span>
-                )}
-                <label className="flex w-48 items-center gap-2">
-                  <input type="range" className={rangeClass} min="1" max="100" defaultValue={isText ? 12 : 25} />
-                  <span className="w-14 text-right text-sm tabular-nums text-slate-500">{size}</span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-    </main>
-  );
-};
 
 const App = () => {
   const [isModalOpen, setIsModalOpen] = useState(true);
@@ -193,7 +50,6 @@ const App = () => {
   const textInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // The text field shares a slot with the signature size label, so focus it when its tool takes over.
     if (placementTool !== 'text') return;
     textInputRef.current?.focus();
   }, [placementTool]);
@@ -329,8 +185,6 @@ const App = () => {
         : 'Now click to place your text'
       : 'Now click to sign'
     : 'Select a file to sign';
-
-  if (SHOW_TEXT_TOOLBAR_COMPARISON) return <TextToolbarComparison />;
 
   return (
     <>
