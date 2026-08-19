@@ -33,6 +33,7 @@ const PLACEMENT_TOOLS: { tool: PlacementTool; label: string }[] = [
   { tool: 'initial', label: 'Initial' },
   { tool: 'text', label: 'Text' },
 ];
+
 type StatusTone = 'error' | 'warning' | 'note';
 
 interface SaveStatus {
@@ -79,6 +80,7 @@ const App = () => {
     if (placementTool !== 'text') return;
     textInputRef.current?.focus();
   }, [placementTool]);
+
   useEffect(() => {
     const dismissTimeout = status?.tone === 'note' ? setTimeout(() => setStatus(null), NOTE_DISMISS_MS) : undefined;
     return () => clearTimeout(dismissTimeout);
