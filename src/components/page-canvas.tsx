@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Loader from '../loader';
 import { composePage } from '../pdf/compositor';
-import { domPointToPdfPoint, getCanvasCssHeight } from '../pdf/coordinates';
-import { renderPreviewPage } from '../pdf/preview';
+import renderPreviewPage from '../pdf/preview';
 import type { PdfDocumentState, PdfPageMeta, SignType, SignaturePlacement } from '../pdf/types';
 
 interface PageCanvasProps {
@@ -34,7 +33,7 @@ const PageCanvas = ({
 }: PageCanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [baseCanvas, setBaseCanvas] = useState<HTMLCanvasElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [isRendering, setIsRendering] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
@@ -42,7 +41,7 @@ const PageCanvas = ({
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) throw new Error('No page canvas container found');
 
     const observer = new ResizeObserver(([entry]) => {
       if (!entry) return;
@@ -57,53 +56,46 @@ const PageCanvas = ({
   }, []);
 
   useEffect(() => {
-    baseCanvasRef.current = null;
+    setBaseCanvas(null);
     setHoverPlacement(null);
     setRenderError(null);
   }, [pageMeta.pageIndex, pdfDocument]);
 
   useEffect(() => {
-    if (!isRenderActive || !containerWidth) return;
-
     let isCancelled = false;
-    setIsRendering(true);
-    setRenderError(null);
+    if (isRenderActive && containerWidth) {
+      setBaseCanvas(null);
+      setIsRendering(true);
+      setRenderError(null);
 
-    void renderPreviewPage({
-      pdfDocument,
-      pageMeta,
-      cssWidthPx: containerWidth,
-      devicePixelRatio: window.devicePixelRatio || 1,
-    })
-      .then(({ baseCanvas, renderState }) => {
-        if (isCancelled) return;
-        baseCanvasRef.current = baseCanvas;
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        canvas.width = renderState.bitmapWidthPx;
-        canvas.height = renderState.bitmapHeightPx;
-        canvas.style.width = `${renderState.cssWidthPx}px`;
-        canvas.style.height = `${renderState.cssHeightPx}px`;
-        composePage({
-          canvas,
-          basePageRender: baseCanvas,
-          pageMeta,
-          placements,
-          signatures,
-          initials,
+      renderPreviewPage({
+        pdfDocument,
+        pageMeta,
+        cssWidthPx: containerWidth,
+        devicePixelRatio: window.devicePixelRatio || 1,
+      })
+        .then(({ baseCanvas: renderedCanvas, dimensions }) => {
+          if (isCancelled) return;
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          canvas.width = dimensions.bitmapWidthPx;
+          canvas.height = dimensions.bitmapHeightPx;
+          canvas.style.width = `${dimensions.cssWidthPx}px`;
+          canvas.style.height = `${dimensions.cssHeightPx}px`;
+          setBaseCanvas(renderedCanvas);
+          onPreviewReady(pageMeta.pageIndex);
+        })
+        .finally(() => {
+          if (isCancelled) return;
+          setIsRendering(false);
+        })
+        .catch((error: unknown) => {
+          if (isCancelled) return;
+          const message = error instanceof Error ? error.message : 'Failed to render page preview';
+          setRenderError(message);
+          onPreviewReady(pageMeta.pageIndex);
         });
-        onPreviewReady(pageMeta.pageIndex);
-      })
-      .catch((error: unknown) => {
-        if (isCancelled) return;
-        const message = error instanceof Error ? error.message : 'Failed to render page preview';
-        setRenderError(message);
-        onPreviewReady(pageMeta.pageIndex);
-      })
-      .finally(() => {
-        if (isCancelled) return;
-        setIsRendering(false);
-      });
+    }
 
     return () => {
       isCancelled = true;
@@ -112,7 +104,6 @@ const PageCanvas = ({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const baseCanvas = baseCanvasRef.current;
     if (!canvas || !baseCanvas) return;
 
     composePage({
@@ -123,25 +114,23 @@ const PageCanvas = ({
       signatures,
       initials,
     });
-  }, [hoverPlacement, initials, pageMeta, placements, signatures]);
+  }, [baseCanvas, hoverPlacement, initials, pageMeta, placements, signatures]);
 
   const handlePointerMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const assetArray = signType === 'signature' ? signatures : initials;
     if (!assetArray.length) return;
 
-    const nextPlacementPoint = domPointToPdfPoint({
-      clientX: event.clientX,
-      clientY: event.clientY,
-      rect: event.currentTarget.getBoundingClientRect(),
-      pageMeta,
-    });
+    const rect = event.currentTarget.getBoundingClientRect();
+    const normalizedX = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const normalizedY = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
     setHoverPlacement({
       id: 'hover',
       pageIndex: pageMeta.pageIndex,
       type: signType,
       assetIndex: nextAssetIndex,
       heightPt: pendingHeightPt,
-      ...nextPlacementPoint,
+      centerXPt: normalizedX * pageMeta.widthPt,
+      centerYFromTopPt: normalizedY * pageMeta.heightPt,
     });
   };
 
@@ -153,22 +142,20 @@ const PageCanvas = ({
     const assetArray = signType === 'signature' ? signatures : initials;
     if (!assetArray.length) return;
 
-    const nextPlacementPoint = domPointToPdfPoint({
-      clientX: event.clientX,
-      clientY: event.clientY,
-      rect: event.currentTarget.getBoundingClientRect(),
-      pageMeta,
-    });
+    const rect = event.currentTarget.getBoundingClientRect();
+    const normalizedX = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const normalizedY = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height));
     onPlacement({
       pageIndex: pageMeta.pageIndex,
       type: signType,
       assetIndex: nextAssetIndex,
       heightPt: pendingHeightPt,
-      ...nextPlacementPoint,
+      centerXPt: normalizedX * pageMeta.widthPt,
+      centerYFromTopPt: normalizedY * pageMeta.heightPt,
     });
   };
 
-  const fallbackHeightPx = getCanvasCssHeight(pageMeta, Math.max(containerWidth, 1));
+  const fallbackHeightPx = (Math.max(containerWidth, 1) * pageMeta.heightPt) / pageMeta.widthPt;
 
   return (
     <div
@@ -178,13 +165,13 @@ const PageCanvas = ({
     >
       <canvas
         ref={canvasRef}
-        className={`block w-full ${!baseCanvasRef.current ? 'invisible' : 'visible'}`}
+        className={`block w-full ${baseCanvas ? 'visible' : 'invisible'}`}
         style={{ minHeight: `${fallbackHeightPx}px` }}
         onMouseMove={handlePointerMove}
         onMouseLeave={handlePointerLeave}
         onMouseUp={handlePointerUp}
       />
-      {!baseCanvasRef.current && (
+      {baseCanvas === null ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/90 text-slate-500">
           {renderError ? (
             <p className="px-6 text-center text-sm text-red-600">{renderError}</p>
@@ -197,7 +184,7 @@ const PageCanvas = ({
             <p className="text-sm font-medium text-slate-500">Queued for rendering</p>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 };

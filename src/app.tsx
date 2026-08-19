@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownTrayIcon,
   ArrowUturnLeftIcon,
@@ -8,15 +8,16 @@ import {
 } from '@heroicons/react/24/outline';
 import StarterModal from './starter-modal';
 import Loader from './loader';
-import { millimetersToPoints } from './pdf/coordinates';
-import { loadPdfDocument } from './pdf/document';
-import { saveFlattenedPdf } from './pdf/export';
+import loadPdfDocument from './pdf/document';
+import saveFlattenedPdf from './pdf/export';
 import type { PdfDocumentState, SignType, SignaturePlacement } from './pdf/types';
 import PageCanvas from './components/page-canvas';
 
 const DEFAULT_SIGNATURE_HEIGHT_MM = 25;
 const MIN_SIGNATURE_HEIGHT_MM = 5;
 const MAX_SIGNATURE_HEIGHT_MM = 100;
+const POINTS_PER_MILLIMETER = 72 / 25.4;
+const NO_PLACEMENTS: SignaturePlacement[] = [];
 
 const App = () => {
   const [isModalOpen, setIsModalOpen] = useState(true);
@@ -37,12 +38,17 @@ const App = () => {
   const [saveProgress, setSaveProgress] = useState<{ currentPage: number; totalPages: number } | null>(null);
   const readyPreviewPagesRef = useRef(new Set<number>());
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       if (!pdfDocument) return;
-      void pdfDocument.proxy.destroy();
-    };
-  }, [pdfDocument]);
+      pdfDocument.proxy.destroy().catch((error: unknown) => {
+        // Cleanup can fail after the UI has unmounted, when there is nowhere left to surface the error.
+        // eslint-disable-next-line no-console
+        console.error('Failed to release the PDF document', error);
+      });
+    },
+    [pdfDocument],
+  );
 
   const handlePdfInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files?.length) return;
@@ -68,17 +74,20 @@ const App = () => {
     setPdfDocument(nextDocument);
   };
 
-  const handlePreviewReady = (pageIndex: number) => {
-    if (!pdfDocument) return;
-    if (readyPreviewPagesRef.current.has(pageIndex)) return;
+  const handlePreviewReady = useCallback(
+    (pageIndex: number) => {
+      if (!pdfDocument) return;
+      if (readyPreviewPagesRef.current.has(pageIndex)) return;
 
-    readyPreviewPagesRef.current.add(pageIndex);
-    setRenderBudget((currentBudget) => {
-      if (currentBudget >= pdfDocument.pageCount) return currentBudget;
-      if (readyPreviewPagesRef.current.size < currentBudget) return currentBudget;
-      return Math.min(currentBudget + 1, pdfDocument.pageCount);
-    });
-  };
+      readyPreviewPagesRef.current.add(pageIndex);
+      setRenderBudget((currentBudget) => {
+        if (currentBudget >= pdfDocument.pageCount) return currentBudget;
+        if (readyPreviewPagesRef.current.size < currentBudget) return currentBudget;
+        return Math.min(currentBudget + 1, pdfDocument.pageCount);
+      });
+    },
+    [pdfDocument],
+  );
 
   const handleSave = async () => {
     if (!pdfDocument) return;
@@ -107,7 +116,28 @@ const App = () => {
     setSaveProgress(null);
   };
 
-  const currentPlacementHeightPt = millimetersToPoints(signatureHeightMm);
+  const placementsByPage = useMemo(() => {
+    const groupedPlacements = new Map<number, SignaturePlacement[]>();
+    for (const placement of signedLocations) {
+      const pagePlacements = groupedPlacements.get(placement.pageIndex);
+      if (pagePlacements) {
+        pagePlacements.push(placement);
+      } else {
+        groupedPlacements.set(placement.pageIndex, [placement]);
+      }
+    }
+    return groupedPlacements;
+  }, [signedLocations]);
+
+  const handlePlacement = useCallback((placement: Omit<SignaturePlacement, 'id'>) => {
+    setSignedLocations((current) => [...current, { ...placement, id: crypto.randomUUID() }]);
+    setNextSignatureOffset((current) => ({
+      ...current,
+      [placement.type]: current[placement.type] + 1,
+    }));
+  }, []);
+
+  const currentPlacementHeightPt = signatureHeightMm * POINTS_PER_MILLIMETER;
   const saveLabel = saveProgress ? `Saving ${saveProgress.currentPage}/${saveProgress.totalPages}` : 'Save';
 
   return (
@@ -151,9 +181,7 @@ const App = () => {
               }`}
               type="file"
               accept=".pdf"
-              onChange={(event) => {
-                void handlePdfInputChange(event);
-              }}
+              onChange={handlePdfInputChange}
             />
           </div>
           <div className="flex w-1/3 min-w-fit items-center justify-center gap-4">
@@ -229,9 +257,7 @@ const App = () => {
               }`}
               type="button"
               disabled={pdfDocument === null || isSavingPdf || signedLocations.length === 0}
-              onClick={() => {
-                void handleSave();
-              }}
+              onClick={handleSave}
             >
               {isSavingPdf && <Loader className="h-5 w-5 animate-spin text-white" />}
               <ArrowDownTrayIcon className="h-6 w-6" />
@@ -244,7 +270,10 @@ const App = () => {
             !pdfDocument || !signedLocations.length ? 'max-h-36' : 'max-h-0'
           }`}
         >
-          <label htmlFor={pdfDocument ? undefined : 'pdf-input'} className="my-1 block whitespace-nowrap font-medium text-slate-700">
+          <label
+            htmlFor={pdfDocument ? undefined : 'pdf-input'}
+            className="my-1 block whitespace-nowrap font-medium text-slate-700"
+          >
             {pdfDocument ? 'Now click to sign' : 'Select a file to sign'}
           </label>
           {loadError && <p className="pb-2 text-sm font-medium text-red-700">{loadError}</p>}
@@ -261,19 +290,13 @@ const App = () => {
                   pageMeta={pageMeta}
                   signatures={signatures}
                   initials={initials}
-                  placements={signedLocations.filter((placement) => placement.pageIndex === pageMeta.pageIndex)}
+                  placements={placementsByPage.get(pageMeta.pageIndex) ?? NO_PLACEMENTS}
                   signType={signType}
                   pendingHeightPt={currentPlacementHeightPt}
                   nextAssetIndex={nextSignatureOffset[signType]}
                   isRenderActive={pageMeta.pageIndex < renderBudget}
                   onPreviewReady={handlePreviewReady}
-                  onPlacement={(placement) => {
-                    setSignedLocations((current) => [...current, { ...placement, id: crypto.randomUUID() }]);
-                    setNextSignatureOffset((current) => ({
-                      ...current,
-                      [signType]: current[signType] + 1,
-                    }));
-                  }}
+                  onPlacement={handlePlacement}
                 />
               ))}
             </div>
