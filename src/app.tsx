@@ -21,6 +21,11 @@ const MIN_TEXT_SIZE_PT = 6;
 const MAX_TEXT_SIZE_PT = 48;
 const POINTS_PER_MILLIMETER = 72 / 25.4;
 const NO_PLACEMENTS: Placement[] = [];
+const PLACEMENT_TOOLS: { tool: PlacementTool; label: string }[] = [
+  { tool: 'signature', label: 'Sign' },
+  { tool: 'initial', label: 'Initial' },
+  { tool: 'text', label: 'Text' },
+];
 
 const App = () => {
   const [isModalOpen, setIsModalOpen] = useState(true);
@@ -147,6 +152,34 @@ const App = () => {
   const currentPlacementHeightPt = signatureHeightMm * POINTS_PER_MILLIMETER;
   const saveLabel = saveProgress ? `Saving ${saveProgress.currentPage}/${saveProgress.totalPages}` : 'Save';
 
+  const sizeControl =
+    placementTool === 'text'
+      ? {
+          label: 'Text size',
+          unit: 'pt',
+          value: textSizePt,
+          min: MIN_TEXT_SIZE_PT,
+          max: MAX_TEXT_SIZE_PT,
+          onChange: setTextSizePt,
+        }
+      : {
+          label: 'Signature size',
+          unit: 'mm',
+          value: signatureHeightMm,
+          min: MIN_SIGNATURE_HEIGHT_MM,
+          max: MAX_SIGNATURE_HEIGHT_MM,
+          onChange: setSignatureHeightMm,
+        };
+
+  const isAwaitingText = placementTool === 'text' && !text.trim();
+  const hintLabel = pdfDocument
+    ? placementTool === 'text'
+      ? isAwaitingText
+        ? 'Type your text, then click to place it'
+        : 'Now click to place your text'
+      : 'Now click to sign'
+    : 'Select a file to sign';
+
   return (
     <>
       <StarterModal
@@ -157,12 +190,12 @@ const App = () => {
         setInitials={setInitials}
       />
       <main className="flex h-screen flex-col">
-        <div className="flex flex-shrink-0 items-center justify-between gap-4 overflow-x-auto border-b border-solid px-2 py-2">
-          <div className="flex w-1/3 min-w-fit items-center gap-4">
+        <div className="flex flex-shrink-0 items-center justify-between gap-2 overflow-x-auto border-b border-solid px-3 py-2 lg:gap-3">
+          <div className="flex shrink-0 items-center gap-2 lg:gap-3">
             <button
               type="button"
               disabled={isModalOpen}
-              className="rounded bg-violet-50 px-2 py-2 font-bold text-violet-700 hover:bg-violet-100 active:bg-violet-200 disabled:bg-gray-300 disabled:text-gray-400"
+              className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 active:bg-violet-200 disabled:bg-gray-300 disabled:text-gray-400"
               onClick={() => setIsModalOpen(true)}
             >
               <Cog8ToothIcon className="h-6 w-6" />
@@ -170,7 +203,7 @@ const App = () => {
             {isParsingPdf && <Loader className="h-7 w-7 animate-spin text-violet-500" />}
             <label
               htmlFor="pdf-input"
-              className={`rounded px-2 py-2 font-bold disabled:bg-gray-300 disabled:text-gray-400 lg:hidden ${
+              className={`flex h-10 w-10 items-center justify-center rounded-lg disabled:bg-gray-300 disabled:text-gray-400 xl:hidden ${
                 pdfDocument
                   ? 'bg-violet-50 text-violet-700 hover:bg-violet-100 active:bg-violet-200'
                   : 'bg-violet-500 text-white hover:bg-violet-700 active:bg-violet-800'
@@ -181,7 +214,7 @@ const App = () => {
             <input
               id="pdf-input"
               disabled={isParsingPdf || isSavingPdf}
-              className={`hidden text-sm text-slate-500 file:mr-4 file:rounded file:border-0 file:px-4 file:py-2 file:text-base file:font-semibold file:disabled:bg-gray-300 file:disabled:text-white lg:block ${
+              className={`hidden text-sm text-slate-500 file:mr-4 file:h-10 file:rounded-lg file:border-0 file:px-4 file:text-base file:font-semibold file:disabled:bg-gray-300 file:disabled:text-white xl:block ${
                 pdfDocument
                   ? 'file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 file:active:bg-violet-200'
                   : 'file:bg-violet-500 file:text-white hover:file:bg-violet-700 file:active:bg-violet-800'
@@ -191,116 +224,77 @@ const App = () => {
               onChange={handlePdfInputChange}
             />
           </div>
-          <div className="flex w-1/3 min-w-fit items-center justify-center gap-4">
-            <div className="flex w-64">
-              <button
-                type="button"
-                className={`inline-flex flex-grow items-center justify-center rounded-l-md border border-gray-300 px-2 py-2 text-center font-bold ${
-                  placementTool === 'signature'
-                    ? 'cursor-default bg-violet-500/90 text-white'
-                    : 'cursor-pointer bg-white text-slate-700 hover:bg-gray-50'
-                }`}
-                onClick={() => setPlacementTool('signature')}
-              >
-                Sign
-              </button>
-              <button
-                type="button"
-                disabled={initials.length === 0}
-                title={
-                  initials.length === 0
-                    ? 'Please go back and select initials if you want to initial a document'
-                    : undefined
-                }
-                className={`-ml-px inline-flex flex-grow items-center justify-center border border-gray-300 px-2 py-2 text-center font-bold disabled:bg-gray-300 disabled:text-gray-400 ${
-                  placementTool === 'initial'
-                    ? 'cursor-default bg-violet-500/90 text-white'
-                    : 'cursor-pointer bg-white text-slate-700 hover:bg-gray-50'
-                }`}
-                onClick={() => setPlacementTool('initial')}
-              >
-                Initial
-              </button>
-              <button
-                type="button"
-                className={`-ml-px inline-flex flex-grow items-center justify-center rounded-r-md border border-gray-300 px-2 py-2 text-center font-bold ${
-                  placementTool === 'text'
-                    ? 'cursor-default bg-violet-500/90 text-white'
-                    : 'cursor-pointer bg-white text-slate-700 hover:bg-gray-50'
-                }`}
-                onClick={() => setPlacementTool('text')}
-              >
-                Text
-              </button>
+          <div className="flex flex-1 items-center justify-center gap-2 lg:gap-3">
+            <div className="flex h-10 shrink-0 items-center gap-1 rounded-lg bg-slate-100 p-1">
+              {PLACEMENT_TOOLS.map(({ tool, label }) => {
+                const isUnavailable = tool === 'initial' && initials.length === 0;
+                return (
+                  <button
+                    key={tool}
+                    type="button"
+                    disabled={isUnavailable}
+                    aria-pressed={placementTool === tool}
+                    title={
+                      isUnavailable ? 'Please go back and select initials if you want to initial a document' : undefined
+                    }
+                    className={`h-8 rounded-md px-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:text-slate-400 ${
+                      placementTool === tool
+                        ? 'cursor-default bg-white text-violet-700 shadow-sm ring-1 ring-slate-900/5'
+                        : 'cursor-pointer text-slate-600 hover:text-slate-900'
+                    }`}
+                    onClick={() => setPlacementTool(tool)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
-            {placementTool === 'text' ? (
-              <div className="flex items-end gap-2">
-                <label htmlFor="placement-text" className="text-sm font-medium text-slate-700">
-                  Text
-                  <input
-                    id="placement-text"
-                    type="text"
-                    value={text}
-                    placeholder="Name, position or date"
-                    onChange={(event) => setText(event.target.value)}
-                    className="mt-1 block w-56 rounded-md border border-gray-300 px-2 py-1.5 text-base font-normal text-slate-900 placeholder:text-slate-400"
-                  />
-                </label>
-                <label htmlFor="text-size" className="text-sm font-medium text-slate-700">
-                  Size
-                  <input
-                    id="text-size"
-                    type="number"
-                    value={textSizePt}
-                    min={MIN_TEXT_SIZE_PT}
-                    max={MAX_TEXT_SIZE_PT}
-                    onChange={(event) => {
-                      if (!Number.isNaN(event.target.valueAsNumber)) {
-                        setTextSizePt(
-                          Math.min(MAX_TEXT_SIZE_PT, Math.max(MIN_TEXT_SIZE_PT, event.target.valueAsNumber)),
-                        );
-                      }
-                    }}
-                    className="mt-1 block w-16 rounded-md border border-gray-300 px-2 py-1.5 text-base font-normal text-slate-900"
-                  />
-                </label>
-              </div>
-            ) : (
-              <div className="w-56 select-none">
-                <label htmlFor="signature-size" className="mb-1 whitespace-nowrap text-slate-800">
-                  Signature Size <span className="text-sm text-gray-500">({signatureHeightMm} mm high)</span>
-                </label>
-                <input
-                  id="signature-size"
-                  type="range"
-                  value={signatureHeightMm}
-                  onChange={(event) => setSignatureHeightMm(Number.parseInt(event.target.value, 10))}
-                  min={MIN_SIGNATURE_HEIGHT_MM}
-                  max={MAX_SIGNATURE_HEIGHT_MM}
-                  className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:bg-violet-500 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-none [&::-webkit-slider-thumb]:bg-violet-500"
-                />
-              </div>
+            {placementTool === 'text' && (
+              <input
+                type="text"
+                value={text}
+                aria-label="Text to place"
+                placeholder="Name, date or reference"
+                onChange={(event) => setText(event.target.value)}
+                className="h-10 w-full min-w-[7rem] max-w-[13rem] rounded-lg border border-gray-300 px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              />
             )}
+            <label className="flex h-10 w-40 shrink-0 select-none items-center gap-2">
+              <span className="sr-only">{sizeControl.label}</span>
+              <input
+                type="range"
+                value={sizeControl.value}
+                onChange={(event) => sizeControl.onChange(Number.parseInt(event.target.value, 10))}
+                min={sizeControl.min}
+                max={sizeControl.max}
+                className="h-2 min-w-0 flex-1 cursor-pointer appearance-none rounded-lg bg-gray-200 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:bg-violet-500 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-none [&::-webkit-slider-thumb]:bg-violet-500"
+              />
+              <span className="w-14 shrink-0 whitespace-nowrap text-right text-sm tabular-nums text-slate-500">
+                {sizeControl.value} {sizeControl.unit}
+              </span>
+            </label>
             <button
-              className="rounded bg-violet-500 px-2 py-2 font-bold text-white hover:bg-violet-700 active:bg-violet-800 disabled:bg-gray-300"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500 text-white hover:bg-violet-700 active:bg-violet-800 disabled:bg-gray-300"
               type="button"
+              title="Undo last placement"
               disabled={pdfDocument === null || placements.length === 0 || isSavingPdf}
               onClick={() => setPlacements((current) => current.slice(0, -1))}
             >
               <ArrowUturnLeftIcon className="h-6 w-6" />
             </button>
             <button
-              className="rounded bg-violet-500 px-2 py-2 font-bold text-white hover:bg-violet-700 active:bg-violet-800 disabled:bg-gray-300"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500 text-white hover:bg-violet-700 active:bg-violet-800 disabled:bg-gray-300"
               type="button"
+              title="Remove all placements"
               disabled={pdfDocument === null || placements.length === 0 || isSavingPdf}
               onClick={() => setPlacements([])}
             >
               <TrashIcon className="h-6 w-6" />
             </button>
           </div>
-          <div className="flex w-1/3 min-w-fit items-center justify-end gap-4">
+          <div className="flex shrink-0 items-center justify-end">
             <button
-              className={`flex min-w-[7rem] items-center justify-center gap-2 rounded px-3 py-2 font-bold text-white ${
+              className={`flex h-10 min-w-[2.5rem] items-center justify-center gap-2 rounded-lg px-2 font-bold text-white lg:min-w-[7rem] lg:px-3 ${
                 pdfDocument && placements.length
                   ? isSavingPdf
                     ? 'bg-violet-500/90'
@@ -308,31 +302,29 @@ const App = () => {
                   : 'bg-gray-300'
               }`}
               type="button"
+              title={saveLabel}
               disabled={pdfDocument === null || isSavingPdf || placements.length === 0}
               onClick={handleSave}
             >
-              {isSavingPdf && <Loader className="h-5 w-5 animate-spin text-white" />}
-              <ArrowDownTrayIcon className="h-6 w-6" />
+              {isSavingPdf ? (
+                <Loader className="h-6 w-6 animate-spin text-white" />
+              ) : (
+                <ArrowDownTrayIcon className="h-6 w-6" />
+              )}
               <span className="hidden text-sm lg:inline">{saveLabel}</span>
             </button>
           </div>
         </div>
         <div
           className={`border-b border-solid bg-violet-100 text-center transition-all ${
-            !pdfDocument || !placements.length ? 'max-h-36' : 'max-h-0'
+            !pdfDocument || !placements.length || isAwaitingText ? 'max-h-36' : 'max-h-0'
           }`}
         >
           <label
             htmlFor={pdfDocument ? undefined : 'pdf-input'}
             className="my-1 block whitespace-nowrap font-medium text-slate-700"
           >
-            {pdfDocument
-              ? placementTool === 'text' && !text.trim()
-                ? 'Enter text, then click to place'
-                : placementTool === 'text'
-                ? 'Now click to place text'
-                : 'Now click to sign'
-              : 'Select a file to sign'}
+            {hintLabel}
           </label>
           {loadError && <p className="pb-2 text-sm font-medium text-red-700">{loadError}</p>}
         </div>
