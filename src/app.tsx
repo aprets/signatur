@@ -146,6 +146,11 @@ const App = () => {
         isModalOpen={isModalOpen}
         closeModal={() => setIsModalOpen(false)}
         canProceed={!!signatures.length}
+        hasPlacements={signedLocations.length > 0}
+        onAssetsChanged={() => {
+          setSignedLocations([]);
+          setSignType('signature');
+        }}
         setSignatures={setSignatures}
         setInitials={setInitials}
       />
