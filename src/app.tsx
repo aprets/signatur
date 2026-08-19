@@ -313,7 +313,7 @@ const App = () => {
           </div>
           <div className="flex shrink-0 items-center justify-end">
             <button
-              className={`flex h-10 min-w-[2.5rem] items-center justify-center gap-2 rounded-lg px-2 font-bold text-white lg:min-w-[7rem] lg:px-3 ${
+              className={`flex h-10 w-10 items-center justify-center gap-2 overflow-hidden rounded-lg px-2 font-bold text-white lg:w-40 lg:px-3 ${
                 pdfDocument && placements.length
                   ? isSavingPdf
                     ? 'bg-violet-500/90'
@@ -326,11 +326,11 @@ const App = () => {
               onClick={handleSave}
             >
               {isSavingPdf ? (
-                <Loader className="h-6 w-6 animate-spin text-white" />
+                <Loader className="h-6 w-6 shrink-0 animate-spin text-white" />
               ) : (
-                <ArrowDownTrayIcon className="h-6 w-6" />
+                <ArrowDownTrayIcon className="h-6 w-6 shrink-0" />
               )}
-              <span className="hidden text-sm lg:inline">{saveLabel}</span>
+              <span className="hidden min-w-0 truncate text-sm lg:inline">{saveLabel}</span>
             </button>
           </div>
         </div>
