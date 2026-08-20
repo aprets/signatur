@@ -8,6 +8,7 @@
  * Pack management (rename, delete) lives in the rail, and the footer holds only the primary
  * action.
  */
+import { useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { DemoModal, PackRail, PngPicker, SignatureTile, TILE_KEYS } from './shared';
 import type { DemoAssetType, OptionProps } from './shared';
@@ -89,7 +90,8 @@ const AssetColumn = ({
 );
 
 const OptionColumns = ({ demo, isOpen, onRequestClose }: OptionProps) => {
-  const { activePack } = demo;
+  const [isConfirmingDelete, setConfirmingDelete] = useState(false);
+  const { packs, activePack } = demo;
   const canProceed = !!activePack?.signatures;
 
   return (
@@ -98,7 +100,7 @@ const OptionColumns = ({ demo, isOpen, onRequestClose }: OptionProps) => {
       onRequestClose={onRequestClose}
       className="isolate flex min-h-[28rem] overflow-hidden rounded-2xl bg-violet-700 shadow-2xl ring-1 ring-black/10 lg:w-[54rem]"
     >
-      <PackRail demo={demo} manage="inline" />
+      <PackRail demo={demo} manage="inline" showDelete={false} onChangePack={() => setConfirmingDelete(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col bg-white">
         <div className="flex min-h-0 flex-1 divide-x divide-slate-100">
@@ -123,8 +125,39 @@ const OptionColumns = ({ demo, isOpen, onRequestClose }: OptionProps) => {
         </div>
 
         <div className="flex h-[4.5rem] shrink-0 items-center gap-3 border-t border-slate-100 px-7">
-          {!canProceed && (
-            <p className="min-w-0 truncate text-sm text-slate-400">Add at least one signature to get started</p>
+          {isConfirmingDelete ? (
+            <>
+              <p className="min-w-0 truncate text-sm text-slate-700">
+                Delete <span className="font-semibold">{activePack?.name}</span> and its files?
+              </p>
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                className="h-9 shrink-0 rounded-lg px-3 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (activePack) demo.deletePack(activePack.id);
+                  setConfirmingDelete(false);
+                }}
+                className="h-9 shrink-0 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              disabled={packs.length === 1}
+              title={packs.length === 1 ? 'The last pack cannot be deleted' : undefined}
+              onClick={() => setConfirmingDelete(true)}
+              className="h-9 shrink-0 rounded-lg px-3 text-sm font-medium text-slate-400 hover:bg-red-50 hover:text-red-700 disabled:pointer-events-none disabled:text-slate-200"
+            >
+              Delete pack
+            </button>
           )}
           <button
             type="button"

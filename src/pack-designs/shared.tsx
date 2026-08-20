@@ -174,10 +174,12 @@ export const TILE_KEYS = ['tile-1', 'tile-2', 'tile-3', 'tile-4', 'tile-5', 'til
 export const PackRail = ({
   demo,
   manage,
+  showDelete = true,
   onChangePack,
 }: {
   demo: DemoPacks;
   manage: 'list' | 'inline';
+  showDelete?: boolean;
   onChangePack?: () => void;
 }) => {
   const [isConfirmingDelete, setConfirmingDelete] = useState(false);
@@ -266,16 +268,18 @@ export const PackRail = ({
                     className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-violet-300"
                   />
                   {isEmpty && <span className="shrink-0 text-[11px] font-normal text-violet-300">empty</span>}
-                  <button
-                    type="button"
-                    disabled={packs.length === 1}
-                    title={packs.length === 1 ? 'The last pack cannot be deleted' : 'Delete pack'}
-                    onClick={() => setConfirmingDelete(true)}
-                    className="flex h-full w-8 shrink-0 items-center justify-center rounded-md text-violet-300 hover:bg-violet-700 hover:text-white disabled:pointer-events-none disabled:opacity-30"
-                  >
-                    <TrashIcon className="h-4 w-4" aria-hidden />
-                    <span className="sr-only">Delete {activePack?.name}</span>
-                  </button>
+                  {showDelete && (
+                    <button
+                      type="button"
+                      disabled={packs.length === 1}
+                      title={packs.length === 1 ? 'The last pack cannot be deleted' : 'Delete pack'}
+                      onClick={() => setConfirmingDelete(true)}
+                      className="flex h-full w-8 shrink-0 items-center justify-center rounded-md text-violet-300 hover:bg-violet-700 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+                    >
+                      <TrashIcon className="h-4 w-4" aria-hidden />
+                      <span className="sr-only">Delete {activePack?.name}</span>
+                    </button>
+                  )}
                 </div>
               )}
             </li>
