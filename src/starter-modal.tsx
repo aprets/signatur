@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import Modal from 'react-modal';
 import {
   createSignaturePackAndSelect,
@@ -14,6 +15,8 @@ import {
 import type { SignaturePack, SignaturePackImageType } from './lib';
 
 Modal.setAppElement('#root');
+
+const VISIBLE_PREVIEWS = 3;
 
 const blobsToImages = async (blobs: Blob[]) => {
   const urls = blobs.map((blob) => URL.createObjectURL(blob));
@@ -31,76 +34,113 @@ const blobsToImages = async (blobs: Blob[]) => {
   }
 };
 
-const ImageSelectionSection = ({
-  title,
-  description,
-  name,
-  savedImageCount,
-  onFilesSelected,
-  disabled,
-  className,
-  highlightInput,
-}: {
-  title: string;
-  description: React.ReactNode;
-  name: SignaturePackImageType;
-  savedImageCount: number;
-  onFilesSelected: (type: SignaturePackImageType, files: File[], remember: boolean) => Promise<void>;
-  disabled: boolean;
-  className?: string;
-  highlightInput?: boolean;
-}) => {
-  const [isSaveTicked, setSaveTicked] = useState(true);
+const SignaturePreview = ({ seed, className }: { seed: number; className: string }) => (
+  <svg viewBox="0 0 48 24" aria-hidden className={className}>
+    <path
+      d={`M4 ${16 + (seed % 3)} C 10 ${4 + (seed % 5)}, 14 ${20 - (seed % 4)}, 20 14 S 30 ${
+        5 + (seed % 6)
+      }, 34 15 S 40 ${19 - (seed % 3)}, 44 9`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+    />
+  </svg>
+);
 
-  return (
-    <div className={className}>
-      <label htmlFor={`${name}-input`}>
-        <h2 className="mb-1 text-lg font-semibold text-slate-800">{title}</h2>
-        <p className="mb-2 text-slate-800">{description}</p>
-      </label>
-      <div className="relative mb-3 flex items-start">
-        <div className="flex h-5 items-center">
-          <input
-            id={`${name}-save-checkbox`}
-            type="checkbox"
-            checked={isSaveTicked}
+const AssetColumn = ({
+  type,
+  title,
+  hint,
+  count,
+  isPrimary,
+  disabled,
+  onFilesSelected,
+  onClear,
+}: {
+  type: SignaturePackImageType;
+  title: string;
+  hint: string;
+  count: number;
+  isPrimary: boolean;
+  disabled: boolean;
+  onFilesSelected: (type: SignaturePackImageType, files: File[]) => Promise<void>;
+  onClear: (type: SignaturePackImageType) => Promise<void>;
+}) => (
+  <div className="flex min-w-0 flex-1 flex-col px-7 pb-6 pt-6">
+    <div className="flex h-7 items-center gap-2">
+      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+      <span className="flex-1" />
+      {count ? (
+        <span className="flex h-6 shrink-0 items-center gap-1 rounded-full bg-slate-100 py-0.5 pl-2.5 pr-1 text-xs font-medium tabular-nums text-slate-500">
+          {count} {count === 1 ? 'file' : 'files'}
+          <button
+            type="button"
             disabled={disabled}
-            onChange={() => setSaveTicked((isTicked) => !isTicked)}
-            className="h-4 w-4 rounded border-gray-300 accent-violet-500"
-          />
-        </div>
-        <div className="ml-3 text-sm">
-          <label htmlFor={`${name}-save-checkbox`} className="font-medium text-slate-700">
-            Also save them to my disk & remember for next time
-          </label>
-        </div>
-      </div>
+            title={`Remove all ${title.toLowerCase()}`}
+            onClick={() => onClear(type)}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:bg-red-100 hover:text-red-600 disabled:pointer-events-none disabled:opacity-40"
+          >
+            <XMarkIcon className="h-3.5 w-3.5" aria-hidden />
+            <span className="sr-only">Remove all {title.toLowerCase()}</span>
+          </button>
+        </span>
+      ) : (
+        <span className="shrink-0 text-xs text-slate-400">{hint}</span>
+      )}
+    </div>
+
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-4">
+      {count ? (
+        <>
+          {Array.from({ length: Math.min(count, VISIBLE_PREVIEWS) }, (_, index) => (
+            <SignaturePreview
+              key={`${type}-${index + 1}`}
+              seed={index + count}
+              className="h-10 w-[4.5rem] shrink-0 text-violet-500"
+            />
+          ))}
+          {count > VISIBLE_PREVIEWS && (
+            <span className="text-xs font-medium tabular-nums text-slate-400">+{count - VISIBLE_PREVIEWS} more</span>
+          )}
+        </>
+      ) : (
+        <>
+          <SignaturePreview seed={3} className="h-10 w-[4.5rem] shrink-0 text-slate-200" />
+          <SignaturePreview seed={4} className="h-10 w-[4.5rem] shrink-0 text-slate-200" />
+          <span className="text-xs text-slate-300">Transparent .png files</span>
+        </>
+      )}
+    </div>
+
+    <label
+      htmlFor={`${type}-input`}
+      className={`flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-sm font-semibold transition-colors ${
+        disabled
+          ? 'pointer-events-none bg-slate-100 text-slate-400'
+          : isPrimary
+          ? 'bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800'
+          : 'bg-violet-50 text-violet-700 hover:bg-violet-100 active:bg-violet-200'
+      }`}
+    >
+      {count ? 'Replace' : 'Choose files'}
       <input
-        id={`${name}-input`}
-        className={`box-border w-full text-sm text-slate-600 file:mr-4 file:rounded file:border-0 file:px-4 file:py-2 file:text-sm file:font-semibold file:disabled:bg-gray-300 file:disabled:text-gray-500 ${
-          highlightInput
-            ? 'file:bg-violet-500 file:text-white hover:file:bg-violet-700 file:active:bg-violet-800'
-            : 'file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100 file:active:bg-violet-200'
-        }`}
+        id={`${type}-input`}
         type="file"
-        accept=".png"
+        accept=".png,image/png"
         multiple
         disabled={disabled}
+        className="sr-only"
         onChange={async (event) => {
           if (!event.target.files?.length) return;
           const input = event.currentTarget;
-          await onFilesSelected(name, [...event.target.files], isSaveTicked);
+          await onFilesSelected(type, [...event.target.files]);
           input.value = '';
         }}
       />
-      {savedImageCount > 0 && (
-        <p className="mt-2 text-sm text-slate-500">
-          {savedImageCount} {savedImageCount === 1 ? name.slice(0, -1) : name} saved in this pack
-        </p>
-      )}
-    </div>
-  );
-};
+    </label>
+  </div>
+);
 
 const StarterModal = ({
   canProceed,
@@ -123,6 +163,7 @@ const StarterModal = ({
   const [activePackId, setActivePackId] = useState('');
   const [packName, setPackName] = useState('');
   const [isBusy, setIsBusy] = useState(true);
+  const [isConfirmingDelete, setConfirmingDelete] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
   const activePackIdRef = useRef('');
   const assetChangeGenerationRef = useRef(0);
@@ -205,6 +246,7 @@ const StarterModal = ({
       activePackIdRef.current = nextPack.id;
       setActivePackId(nextPack.id);
       setPackName(nextPack.name);
+      setConfirmingDelete(false);
     } catch (error: unknown) {
       showStorageError(error);
     } finally {
@@ -265,6 +307,7 @@ const StarterModal = ({
       activePackIdRef.current = pack.id;
       setActivePackId(pack.id);
       setPackName(pack.name);
+      setConfirmingDelete(false);
       requestAnimationFrame(() => packNameInputRef.current?.select());
     } catch (error: unknown) {
       showStorageError(error);
@@ -277,11 +320,6 @@ const StarterModal = ({
     if (!activePack || packs.length === 1 || isBusy) return;
     const nextPack = packs.find((pack) => pack.id !== activePack.id);
     if (!nextPack) return;
-    const warning = hasPlacements
-      ? `Delete “${activePack.name}”? This will also remove the signatures and initials already placed on this PDF.`
-      : `Delete “${activePack.name}”?`;
-    // eslint-disable-next-line no-alert
-    if (!window.confirm(warning)) return;
 
     setIsBusy(true);
     setStorageError(null);
@@ -297,6 +335,7 @@ const StarterModal = ({
       activePackIdRef.current = nextPack.id;
       setActivePackId(nextPack.id);
       setPackName(nextPack.name);
+      setConfirmingDelete(false);
     } catch (error: unknown) {
       showStorageError(error);
     } finally {
@@ -304,7 +343,7 @@ const StarterModal = ({
     }
   };
 
-  const handleFilesSelected = async (type: SignaturePackImageType, files: File[], remember: boolean) => {
+  const handleFilesSelected = async (type: SignaturePackImageType, files: File[]) => {
     if (!activePack || isBusy || !confirmAssetChange()) return;
     setIsBusy(true);
     setStorageError(null);
@@ -314,13 +353,11 @@ const StarterModal = ({
       const images = shuffle(await blobsToImages(files));
       if (generation !== assetChangeGenerationRef.current) return;
 
-      if (remember) {
-        const updatedPack = { ...activePack, [type]: files };
-        const database = await getIndexedDbDatabase();
-        await writeSignaturePack(database, updatedPack);
-        if (generation !== assetChangeGenerationRef.current) return;
-        setPacks((currentPacks) => currentPacks.map((pack) => (pack.id === updatedPack.id ? updatedPack : pack)));
-      }
+      const updatedPack = { ...activePack, [type]: files };
+      const database = await getIndexedDbDatabase();
+      await writeSignaturePack(database, updatedPack);
+      if (generation !== assetChangeGenerationRef.current) return;
+      setPacks((currentPacks) => currentPacks.map((pack) => (pack.id === updatedPack.id ? updatedPack : pack)));
 
       onAssetsChanged();
       if (type === 'signatures') {
@@ -335,7 +372,35 @@ const StarterModal = ({
     }
   };
 
+  const handleClearFiles = async (type: SignaturePackImageType) => {
+    if (!activePack || !activePack[type].length || isBusy || !confirmAssetChange()) return;
+    setIsBusy(true);
+    setStorageError(null);
+
+    const updatedPack = { ...activePack, [type]: [] };
+    try {
+      const database = await getIndexedDbDatabase();
+      await writeSignaturePack(database, updatedPack);
+      setPacks((currentPacks) => currentPacks.map((pack) => (pack.id === updatedPack.id ? updatedPack : pack)));
+      onAssetsChanged();
+      if (type === 'signatures') {
+        setSignatures([]);
+      } else {
+        setInitials([]);
+      }
+    } catch (error: unknown) {
+      showStorageError(error);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
   const canClose = canProceed && !isBusy;
+  const deletePrompt = activePack
+    ? hasPlacements
+      ? `Delete “${activePack.name}”? Placed signatures and initials will also be removed.`
+      : `Delete “${activePack.name}” and its files?`
+    : 'Delete this pack?';
 
   return (
     <Modal
@@ -345,129 +410,155 @@ const StarterModal = ({
       onRequestClose={closeModal}
       contentLabel="Welcome Modal"
       overlayClassName="fixed inset-0 bg-slate-800 bg-opacity-75 transition-opacity duration-500 opacity-0"
-      className="absolute left-1/2 top-1/2 max-h-[95vh] w-[90vw] -translate-x-1/2 -translate-y-1/2 transform overflow-auto rounded-lg bg-white p-8 shadow-lg outline-none lg:w-[44rem]"
+      className="absolute left-1/2 top-1/2 isolate flex max-h-[95vh] min-h-[28rem] w-[90vw] -translate-x-1/2 -translate-y-1/2 transform overflow-auto rounded-2xl bg-violet-700 shadow-2xl outline-none ring-1 ring-black/10 lg:w-[54rem]"
       closeTimeoutMS={500}
     >
-      <h1 className="mb-4 text-4xl font-bold text-slate-800">Welcome! 🖋️</h1>
-      <p className="text-slate-800">
-        This is a simple app that allows you to &quot;sign&quot; PDFs.
-        <br />
-        <span title="Feel free to open the network tab and check 😉">
-          Everything runs in your browser, so your data is never sent to any servers ✨.
-        </span>
-        <br />
-        To get started, select your signatures and initials below.
-      </p>
-      <p className="mb-1 text-slate-600">
-        -{' '}
-        <a href="https://aprets.me" className="underline">
-          aprets
-        </a>
-      </p>
-      <p className="mb-4 text-xs text-slate-600">
-        (You can also check out the source code on{' '}
-        <a href="https://github.com/aprets/signatur" className="underline">
-          GitHub
-        </a>
-        )
-      </p>
-
-      <section className="mb-6 rounded-lg border border-violet-200 bg-violet-50 p-4">
-        <h2 className="mb-3 text-lg font-semibold text-slate-800">Signature pack</h2>
-        <div className="flex flex-wrap items-end gap-3">
-          <label htmlFor="signature-pack" className="text-sm font-medium text-slate-700">
-            Current pack
-            <select
-              id="signature-pack"
-              value={activePackId}
-              disabled={isBusy || !activePack}
-              onChange={(event) => handlePackChange(event.target.value)}
-              className="mt-1 block w-40 rounded-md border border-gray-300 bg-white px-2 py-2 text-base font-normal text-slate-900 disabled:bg-gray-100"
-            >
-              {packs.map((pack) => (
-                <option key={pack.id} value={pack.id}>
-                  {pack.id === activePackId ? packName : pack.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label htmlFor="signature-pack-name" className="text-sm font-medium text-slate-700">
-            Pack name
-            <input
-              ref={packNameInputRef}
-              id="signature-pack-name"
-              type="text"
-              value={packName}
-              disabled={isBusy || !activePack}
-              onChange={(event) => setPackName(event.target.value)}
-              onBlur={handlePackNameBlur}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur();
-              }}
-              className="mt-1 block w-40 rounded-md border border-gray-300 px-2 py-2 text-base font-normal text-slate-900 disabled:bg-gray-100"
-            />
-          </label>
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={handleNewPack}
-            className="rounded bg-violet-500 px-3 py-2 font-bold text-white hover:bg-violet-700 active:bg-violet-800 disabled:bg-gray-300"
-          >
-            New pack
-          </button>
-          <button
-            type="button"
-            disabled={isBusy || packs.length === 1}
-            onClick={handleDeletePack}
-            className="rounded bg-white px-3 py-2 font-bold text-red-700 ring-1 ring-inset ring-red-200 hover:bg-red-50 active:bg-red-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:ring-gray-200"
-          >
-            Delete
-          </button>
+      <aside className="flex w-56 shrink-0 flex-col bg-violet-700 lg:w-64">
+        <div className="px-6 pb-6 pt-7">
+          <h1 className="text-lg font-bold tracking-tight text-white">Sign</h1>
+          <p className="mt-2 text-[13px] leading-5 text-violet-200">
+            Sign PDFs. Everything runs in your browser, so your data is never sent to any servers.
+          </p>
         </div>
-        <p className="mt-2 text-sm text-slate-600">Use a separate pack for each person whose documents you sign.</p>
-        {storageError && <p className="mt-2 text-sm font-medium text-red-700">{storageError}</p>}
-      </section>
 
-      <ImageSelectionSection
-        className="mb-8"
-        title="Signatures"
-        description={
-          <>
-            Please assemble a folder with (ideally multiple) transparent .png signatures.
-            <br />
-            Select all the available signatures below.
-          </>
-        }
-        name="signatures"
-        savedImageCount={activePack?.signatures.length ?? 0}
-        onFilesSelected={handleFilesSelected}
-        disabled={isBusy || !activePack}
-        highlightInput={!canProceed}
-      />
-      <ImageSelectionSection
-        className="mb-4"
-        title="Initials"
-        description={
-          <>
-            You can also do the same with initials.
-            <br />
-            If you want to use initials, please select all available initials below.
-          </>
-        }
-        name="initials"
-        savedImageCount={activePack?.initials.length ?? 0}
-        onFilesSelected={handleFilesSelected}
-        disabled={isBusy || !activePack}
-      />
-      <div className="mt-8 flex justify-center">
+        <p className="px-6 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-300">Your packs</p>
+        <ul className="min-h-0 flex-1 overflow-y-auto">
+          {packs.map((pack) => {
+            const isActive = pack.id === activePackId;
+            const isEmpty = !pack.signatures.length && !pack.initials.length;
+            return (
+              <li key={pack.id} ref={isActive ? (node) => node?.scrollIntoView({ block: 'nearest' }) : null}>
+                {isActive ? (
+                  <div className="flex h-11 w-full items-center gap-1 border-l-[3px] border-white bg-violet-800 py-1 pl-6 pr-3">
+                    <label htmlFor="active-pack-name" className="sr-only">
+                      Pack name
+                    </label>
+                    <input
+                      ref={packNameInputRef}
+                      id="active-pack-name"
+                      type="text"
+                      value={packName}
+                      title="Rename pack"
+                      disabled={isBusy}
+                      onChange={(event) => setPackName(event.target.value)}
+                      onBlur={handlePackNameBlur}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') event.currentTarget.blur();
+                      }}
+                      className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-violet-300 disabled:opacity-60"
+                    />
+                    {isEmpty && <span className="shrink-0 text-[11px] font-normal text-violet-300">empty</span>}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    onClick={() => handlePackChange(pack.id)}
+                    className="flex h-11 w-full items-center gap-2 border-l-[3px] border-transparent px-6 text-left text-sm text-violet-100 hover:bg-violet-600/60 disabled:pointer-events-none disabled:opacity-60"
+                  >
+                    <span className="min-w-0 flex-1 truncate">{pack.name}</span>
+                    {isEmpty && <span className="shrink-0 text-[11px] font-normal text-violet-300">empty</span>}
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
         <button
           type="button"
-          disabled={!canClose}
-          className="w-36 rounded bg-violet-500 px-4 py-2 font-bold text-white hover:bg-violet-700 active:bg-violet-800 disabled:bg-gray-300"
-          onClick={closeModal}
+          disabled={isBusy}
+          onClick={handleNewPack}
+          className="mt-2 flex h-11 shrink-0 items-center gap-2 px-6 text-sm font-semibold text-violet-100 hover:bg-violet-600/60 hover:text-white disabled:pointer-events-none disabled:opacity-60"
         >
-          Let&apos;s Go 🚀
+          <PlusIcon className="h-4 w-4" aria-hidden />
+          New pack
         </button>
+        <p className="border-t border-violet-600 px-6 py-4 text-[11px] text-violet-300">
+          Made by{' '}
+          <a href="https://aprets.me" className="underline hover:text-white">
+            aprets
+          </a>{' '}
+          ·{' '}
+          <a href="https://github.com/aprets/signatur" className="underline hover:text-white">
+            GitHub
+          </a>
+        </p>
+      </aside>
+
+      <div className="flex min-w-[32rem] flex-1 flex-col bg-white">
+        <div className="flex min-h-0 flex-1 divide-x divide-slate-100">
+          <AssetColumn
+            type="signatures"
+            title="Signatures"
+            hint="none yet"
+            count={activePack?.signatures.length ?? 0}
+            isPrimary={!canProceed}
+            disabled={isBusy || !activePack}
+            onFilesSelected={handleFilesSelected}
+            onClear={handleClearFiles}
+          />
+          <AssetColumn
+            type="initials"
+            title="Initials"
+            hint="optional"
+            count={activePack?.initials.length ?? 0}
+            isPrimary={false}
+            disabled={isBusy || !activePack}
+            onFilesSelected={handleFilesSelected}
+            onClear={handleClearFiles}
+          />
+        </div>
+
+        <div className="flex h-[4.5rem] shrink-0 items-center gap-3 border-t border-slate-100 px-7">
+          {isConfirmingDelete ? (
+            <>
+              <p className="min-w-0 truncate text-sm text-slate-700" title={deletePrompt}>
+                {deletePrompt}
+              </p>
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => setConfirmingDelete(false)}
+                className="h-9 shrink-0 rounded-lg px-3 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={handleDeletePack}
+                className="h-9 shrink-0 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 disabled:pointer-events-none disabled:opacity-50"
+              >
+                Delete
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              disabled={isBusy || packs.length === 1}
+              title={packs.length === 1 ? 'The last pack cannot be deleted' : undefined}
+              onClick={() => setConfirmingDelete(true)}
+              className="h-9 shrink-0 rounded-lg px-3 text-sm font-medium text-slate-400 hover:bg-red-50 hover:text-red-700 disabled:pointer-events-none disabled:text-slate-200"
+            >
+              Delete pack
+            </button>
+          )}
+          {storageError && (
+            <p className="min-w-0 flex-1 truncate text-xs font-medium text-red-700" title={storageError}>
+              {storageError}
+            </p>
+          )}
+          <button
+            type="button"
+            disabled={!canClose}
+            title={canProceed ? undefined : 'Add at least one signature to this pack first'}
+            className="ml-auto h-11 shrink-0 rounded-lg bg-violet-600 px-6 font-semibold text-white hover:bg-violet-700 active:bg-violet-800 disabled:bg-slate-200 disabled:text-slate-400"
+            onClick={closeModal}
+          >
+            Let&apos;s go 🚀
+          </button>
+        </div>
       </div>
     </Modal>
   );
