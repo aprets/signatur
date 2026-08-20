@@ -437,11 +437,11 @@ const StarterModal = ({
       shouldCloseOnEsc={canClose}
       onRequestClose={closeModal}
       contentLabel="Welcome Modal"
-      overlayClassName="fixed inset-0 bg-slate-800 bg-opacity-75 transition-opacity duration-500 opacity-0"
+      overlayClassName="fixed inset-0 z-50 bg-slate-800 bg-opacity-75 transition-opacity duration-500 opacity-0"
       className="absolute left-1/2 top-1/2 isolate flex max-h-[95vh] min-h-[28rem] w-[90vw] -translate-x-1/2 -translate-y-1/2 transform overflow-auto rounded-2xl bg-transparent shadow-2xl outline-none lg:w-[54rem]"
       closeTimeoutMS={500}
     >
-      <aside className="flex w-56 shrink-0 flex-col border-y border-l border-violet-600 bg-violet-700 lg:w-64">
+      <aside className="flex w-56 shrink-0 flex-col bg-violet-700 lg:w-64">
         <div className="px-6 pb-6 pt-7">
           <h1 className="text-lg font-bold tracking-tight text-white">Signatur 🖋️</h1>
           <p className="mt-2 text-[13px] leading-5 text-violet-200">
