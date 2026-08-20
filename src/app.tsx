@@ -54,7 +54,8 @@ const STATUS_TONE_ICONS: Record<StatusTone, typeof ExclamationCircleIcon> = {
 };
 
 const App = () => {
-  const [isModalOpen, setIsModalOpen] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activePackName, setActivePackName] = useState('');
   const [placementTool, setPlacementTool] = useState<PlacementTool>('signature');
   const [signatureHeightMm, setSignatureHeightMm] = useState(DEFAULT_SIGNATURE_HEIGHT_MM);
   const [text, setText] = useState('');
@@ -75,6 +76,8 @@ const App = () => {
   const [saveProgress, setSaveProgress] = useState<ExportProgress | null>(null);
   const readyPreviewPagesRef = useRef(new Set<number>());
   const textInputRef = useRef<HTMLInputElement>(null);
+
+  const openModal = useCallback(() => setIsModalOpen(true), []);
 
   useEffect(() => {
     if (placementTool !== 'text') return;
@@ -260,6 +263,7 @@ const App = () => {
     <>
       <StarterModal
         isModalOpen={isModalOpen}
+        openModal={openModal}
         closeModal={() => setIsModalOpen(false)}
         canProceed={!!signatures.length}
         hasPlacements={placements.length > 0}
@@ -267,6 +271,7 @@ const App = () => {
           setPlacements([]);
           setPlacementTool('signature');
         }}
+        onActivePackName={setActivePackName}
         setSignatures={setSignatures}
         setInitials={setInitials}
       />
@@ -276,10 +281,14 @@ const App = () => {
             <button
               type="button"
               disabled={isModalOpen}
-              className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 active:bg-violet-200 disabled:bg-gray-300 disabled:text-gray-400"
-              onClick={() => setIsModalOpen(true)}
+              title="Signature packs and settings"
+              className="flex h-10 shrink-0 items-center gap-2 rounded-lg bg-violet-50 px-2 text-violet-700 hover:bg-violet-100 active:bg-violet-200 disabled:bg-gray-300 disabled:text-gray-400"
+              onClick={openModal}
             >
-              <Cog8ToothIcon className="h-6 w-6" />
+              <Cog8ToothIcon className="h-6 w-6 shrink-0" />
+              {activePackName && (
+                <span className="max-w-[9rem] truncate pr-1 text-sm font-semibold">{activePackName}</span>
+              )}
             </button>
             {isParsingPdf && <Loader className="h-7 w-7 animate-spin text-violet-500" />}
             <label
