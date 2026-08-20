@@ -7,22 +7,38 @@
 import { useState } from 'react';
 import { useDemoPacks } from './shared';
 import OptionSplit from './option-split';
-import OptionStage from './option-stage';
+import OptionHeadline from './option-headline';
+import OptionBands from './option-bands';
+import OptionColumns from './option-columns';
 
 const VARIANTS = [
   {
     id: 'split',
     name: 'Split',
-    lineage: 'from Roster',
-    idea: 'The pack list becomes the modal itself: a full-bleed violet rail holding the welcome copy, the packs and the credits, so the white side only ever shows the active pack — its name as the title and two wide upload wells. No box inside a box, no per-file controls, delete confirms in the footer.',
+    lineage: 'baseline',
+    idea: 'Last round’s pick, unchanged, for reference. Its known weakness: a filled well speaks in three voices at three corners — a Clear link above, a floating count, a Replace pill inside — and the footer pairs an orphaned Delete pack with the CTA.',
     Component: OptionSplit,
   },
   {
-    id: 'stage',
-    name: 'Stage',
-    lineage: 'from Switcher',
-    idea: 'No dropdown at all. The active pack is the headline; switching flips the modal to a second full-size face listing the packs. The body is full-bleed bands — signatures, initials — and the welcome copy is demoted to a footnote beside the primary action.',
-    Component: OptionStage,
+    id: 'headline',
+    name: 'Headline',
+    lineage: 'from Split',
+    idea: 'The white side gets a spine: the pack name is its editable headline, and every destructive action — clear signatures, clear initials, delete pack — is consolidated into one ⋯ menu beside it. Each well then has one job and one voice: the whole surface picks files, with a quiet trailing “Replace” once filled. The footer holds only the CTA.',
+    Component: OptionHeadline,
+  },
+  {
+    id: 'bands',
+    name: 'Bands',
+    lineage: 'from Split',
+    idea: 'Strict division of labour: the rail owns the pack (rename inline, trash confirms in the row), the white side owns only its contents. Two full-height bands with a fixed control column — one button, one clear slot, always in the same place. No footer: the CTA is a full-width bar that states what is missing while disabled.',
+    Component: OptionBands,
+  },
+  {
+    id: 'columns',
+    name: 'Columns',
+    lineage: 'from Split',
+    idea: 'The two sets become the architecture: signatures and initials are full-height columns split by a hairline. Each column is three layers — a header where the count and its removal fuse into one chip (“7 files ×”), strokes resting on the surface, one button pinned to the bottom. Pack management lives in the rail.',
+    Component: OptionColumns,
   },
 ];
 
@@ -42,8 +58,8 @@ const AppBackdrop = () => (
 
 /** `?pack-designs=stage` deep-links straight to one option; `?pack-designs=1` opens the first. */
 const requestedVariantId = new URLSearchParams(window.location.search).get('pack-designs') ?? '';
-// The previous round's names, so old links keep working.
-const LEGACY_IDS: Record<string, string> = { roster: 'split', switcher: 'stage' };
+// The previous rounds' names, so old links keep working.
+const LEGACY_IDS: Record<string, string> = { roster: 'split', switcher: 'split', stage: 'split' };
 const initialVariantId = LEGACY_IDS[requestedVariantId] ?? requestedVariantId;
 
 const PackDesignsPage = () => {

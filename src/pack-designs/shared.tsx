@@ -8,6 +8,7 @@
  */
 import { useCallback, useState } from 'react';
 import Modal from 'react-modal';
+import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 export interface DemoPack {
   id: string;
@@ -162,6 +163,147 @@ export const SignatureTile = ({ seed, className }: { seed: number; className?: s
 
 /** Stable keys for the fake previews, so rails never key on an array index. */
 export const TILE_KEYS = ['tile-1', 'tile-2', 'tile-3', 'tile-4', 'tile-5', 'tile-6', 'tile-7', 'tile-8'];
+
+/**
+ * The settled part of the Split direction: the modal's full-bleed violet left edge carrying
+ * the welcome copy, the pack list and the credits. Options differ in how much pack management
+ * lives here — `manage="list"` keeps the rail a pure switcher, `manage="inline"` gives the
+ * active row its rename input and a delete that confirms in place, so the white side never
+ * has to host pack-level actions at all.
+ */
+export const PackRail = ({
+  demo,
+  manage,
+  onChangePack,
+}: {
+  demo: DemoPacks;
+  manage: 'list' | 'inline';
+  onChangePack?: () => void;
+}) => {
+  const [isConfirmingDelete, setConfirmingDelete] = useState(false);
+  const { packs, activeId, activePack, createPack } = demo;
+
+  const changePack = (action: () => void) => {
+    setConfirmingDelete(false);
+    action();
+    onChangePack?.();
+  };
+
+  return (
+    <div className="flex w-56 shrink-0 flex-col bg-violet-700 lg:w-64">
+      <div className="px-6 pb-6 pt-7">
+        <p className="text-lg font-bold tracking-tight text-white">Sign</p>
+        <p className="mt-2 text-[13px] leading-5 text-violet-200">
+          Sign PDFs. Everything runs in your browser, so your data is never sent to any servers.
+        </p>
+      </div>
+
+      <p className="px-6 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-violet-300">Your packs</p>
+      <ul className="min-h-0 flex-1 overflow-y-auto">
+        {packs.map((pack) => {
+          const isActive = pack.id === activeId;
+          const isEmpty = !pack.signatures && !pack.initials;
+          if (!isActive) {
+            return (
+              <li key={pack.id}>
+                <button
+                  type="button"
+                  onClick={() => changePack(() => demo.selectPack(pack.id))}
+                  className="flex h-11 w-full items-center gap-2 border-l-[3px] border-transparent px-6 text-left text-sm text-violet-100 hover:bg-violet-600/60"
+                >
+                  <span className="min-w-0 flex-1 truncate">{pack.name}</span>
+                  {isEmpty && <span className="shrink-0 text-[11px] font-normal text-violet-300">empty</span>}
+                </button>
+              </li>
+            );
+          }
+          return (
+            <li
+              key={pack.id}
+              // Keeps a freshly created or newly selected pack visible when the list scrolls.
+              ref={(node) => node?.scrollIntoView({ block: 'nearest' })}
+            >
+              {manage === 'list' && (
+                <p className="flex h-11 w-full items-center gap-2 border-l-[3px] border-white bg-violet-800 px-6 text-sm font-semibold text-white">
+                  <span className="min-w-0 flex-1 truncate">{pack.name}</span>
+                  {isEmpty && <span className="shrink-0 text-[11px] font-normal text-violet-300">empty</span>}
+                </p>
+              )}
+              {manage === 'inline' && isConfirmingDelete && (
+                <div className="flex h-11 w-full items-center gap-2 border-l-[3px] border-white bg-violet-800 py-1 pl-6 pr-3">
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">Delete?</span>
+                  <button
+                    type="button"
+                    title={`Delete ${pack.name} and its files`}
+                    onClick={() => changePack(() => demo.deletePack(pack.id))}
+                    className="h-full shrink-0 rounded-md bg-red-500/90 px-2.5 text-xs font-semibold text-white hover:bg-red-500"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(false)}
+                    className="h-full shrink-0 rounded-md px-2 text-xs font-semibold text-violet-200 hover:bg-violet-700 hover:text-white"
+                  >
+                    Keep
+                  </button>
+                </div>
+              )}
+              {manage === 'inline' && !isConfirmingDelete && (
+                <div className="flex h-11 w-full items-center gap-1 border-l-[3px] border-white bg-violet-800 py-1 pl-6 pr-3">
+                  <label htmlFor="rail-pack-name" className="sr-only">
+                    Pack name
+                  </label>
+                  <input
+                    id="rail-pack-name"
+                    type="text"
+                    value={pack.name}
+                    title="Rename pack"
+                    onChange={(event) => demo.renameActive(event.target.value)}
+                    onBlur={(event) => {
+                      if (!event.target.value.trim()) demo.renameActive('Untitled pack');
+                    }}
+                    className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-violet-300"
+                  />
+                  {isEmpty && <span className="shrink-0 text-[11px] font-normal text-violet-300">empty</span>}
+                  <button
+                    type="button"
+                    disabled={packs.length === 1}
+                    title={packs.length === 1 ? 'The last pack cannot be deleted' : 'Delete pack'}
+                    onClick={() => setConfirmingDelete(true)}
+                    className="flex h-full w-8 shrink-0 items-center justify-center rounded-md text-violet-300 hover:bg-violet-700 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+                  >
+                    <TrashIcon className="h-4 w-4" aria-hidden />
+                    <span className="sr-only">Delete {activePack?.name}</span>
+                  </button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      <button
+        type="button"
+        onClick={() => changePack(createPack)}
+        className="mt-2 flex h-11 shrink-0 items-center gap-2 px-6 text-sm font-semibold text-violet-100 hover:bg-violet-600/60 hover:text-white"
+      >
+        <PlusIcon className="h-4 w-4" aria-hidden />
+        New pack
+      </button>
+      <p className="border-t border-violet-600 px-6 py-4 text-[11px] text-violet-300">
+        Made by{' '}
+        <a href="https://aprets.me" className="underline hover:text-white">
+          aprets
+        </a>{' '}
+        ·{' '}
+        <a href="https://github.com/aprets/signatur" className="underline hover:text-white">
+          GitHub
+        </a>
+      </p>
+    </div>
+  );
+};
 
 /**
  * The real StarterModal overlay, nothing more. Each option owns its own panel: the whole
