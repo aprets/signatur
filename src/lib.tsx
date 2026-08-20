@@ -1,70 +1,184 @@
-export const readBlobsFromIndexedDb = async (database: IDBDatabase, storeName: 'signatures' | 'initials') => {
-  const transaction = database.transaction(storeName, 'readonly');
-  const store = transaction.objectStore(storeName);
-  const arrayBuffers = await new Promise<ArrayBuffer[]>((resolve, reject) => {
-    const request = store.getAll();
-    request.addEventListener('error', () => {
-      reject(new Error('Could not read from indexedDB'));
-    });
-    request.addEventListener('success', () => {
-      resolve(request.result as ArrayBuffer[]);
-    });
-  });
-  const blobPromises = arrayBuffers.map((arrayBuffer) => arrayBufferToBlob(arrayBuffer, 'image/png'));
-  return Promise.all(blobPromises);
-};
+export type SignaturePackImageType = 'signatures' | 'initials';
 
-export const writeBlobsToIndexedDb = async (
-  blobs: Blob[],
-  database: IDBDatabase,
-  storeName: 'signatures' | 'initials',
-) => {
-  const arrayBufferPromises = blobs.map((blob) => blobToArrayBuffer(blob));
-  const arrayBuffers = await Promise.all(arrayBufferPromises);
-  const transaction = database.transaction(storeName, 'readwrite');
-  const store = transaction.objectStore(storeName);
-  await new Promise<void>((resolve, reject) => {
-    const request = store.clear();
-    request.addEventListener('error', () => {
-      reject(new Error('Could not clear indexedDB'));
-    });
-    request.addEventListener('success', () => {
-      resolve();
-    });
-  });
-  const savePromises = arrayBuffers.map(
-    (arrayBuffer) =>
-      new Promise<void>((resolve, reject) => {
-        const request = store.add(arrayBuffer);
-        request.addEventListener('error', () => {
-          reject(new Error('Could not add to indexedDB'));
-        });
-        request.addEventListener('success', () => {
-          resolve();
-        });
-      }),
-  );
-  await Promise.all(savePromises);
-};
+export interface SignaturePack {
+  id: string;
+  name: string;
+  signatures: Blob[];
+  initials: Blob[];
+}
 
-export const getIndexedDbDatabase = async () =>
-  new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open('signatur', 1);
+interface StoredSignaturePack {
+  id: string;
+  name: string;
+  signatures: ArrayBuffer[];
+  initials: ArrayBuffer[];
+}
+
+const ACTIVE_PACK_SETTING = 'activeSignaturePackId';
+let databasePromise: Promise<IDBDatabase> | null = null;
+
+const requestResult = <T,>(request: IDBRequest<T>, errorMessage: string) =>
+  new Promise<T>((resolve, reject) => {
+    request.addEventListener('success', () => resolve(request.result));
+    request.addEventListener('error', () => reject(new Error(errorMessage)));
+  });
+
+const transactionDone = (transaction: IDBTransaction, errorMessage: string) =>
+  new Promise<void>((resolve, reject) => {
+    transaction.addEventListener('complete', () => resolve());
+    transaction.addEventListener('abort', () => reject(new Error(errorMessage)));
+    transaction.addEventListener('error', () => reject(new Error(errorMessage)));
+  });
+
+export const getIndexedDbDatabase = () => {
+  if (databasePromise) return databasePromise;
+
+  databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open('signatur', 2);
+    let wasBlocked = false;
+
     request.addEventListener('success', () => {
+      if (wasBlocked) {
+        request.result.close();
+        return;
+      }
+      request.result.addEventListener('versionchange', () => {
+        request.result.close();
+        databasePromise = null;
+      });
       resolve(request.result);
     });
 
     request.addEventListener('error', () => {
-      reject(new Error('Could not open indexedDB'));
+      reject(new Error('Could not open saved signature packs'));
     });
 
-    request.addEventListener('upgradeneeded', () => {
-      const db = request.result;
-      db.createObjectStore('signatures', { autoIncrement: true });
-      db.createObjectStore('initials', { autoIncrement: true });
-      resolve(db);
+    request.addEventListener('blocked', () => {
+      wasBlocked = true;
+      reject(new Error('Close other tabs of this app, then reload to update saved signature packs'));
     });
+
+    request.addEventListener('upgradeneeded', (event) => {
+      const database = request.result;
+      const { transaction } = request;
+      if (!transaction) throw new Error('No IndexedDB upgrade transaction found');
+
+      const { oldVersion } = event;
+      const packsStore = database.createObjectStore('signaturePacks', { keyPath: 'id' });
+      const settingsStore = database.createObjectStore('settings');
+      const personalPackId = crypto.randomUUID();
+
+      if (oldVersion < 1) {
+        packsStore.add({
+          id: personalPackId,
+          name: 'Personal',
+          signatures: [],
+          initials: [],
+        } satisfies StoredSignaturePack);
+        settingsStore.put(personalPackId, ACTIVE_PACK_SETTING);
+        return;
+      }
+
+      const signaturesRequest = transaction.objectStore('signatures').getAll();
+      signaturesRequest.addEventListener('success', () => {
+        const initialsRequest = transaction.objectStore('initials').getAll();
+        initialsRequest.addEventListener('success', () => {
+          packsStore.add({
+            id: personalPackId,
+            name: 'Personal',
+            signatures: signaturesRequest.result as ArrayBuffer[],
+            initials: initialsRequest.result as ArrayBuffer[],
+          } satisfies StoredSignaturePack);
+          settingsStore.put(personalPackId, ACTIVE_PACK_SETTING);
+          database.deleteObjectStore('signatures');
+          database.deleteObjectStore('initials');
+        });
+      });
+    });
+  }).catch((error: unknown) => {
+    databasePromise = null;
+    throw error;
   });
+
+  return databasePromise;
+};
+
+export const readSignaturePacks = async (database: IDBDatabase): Promise<SignaturePack[]> => {
+  const transaction = database.transaction('signaturePacks', 'readonly');
+  const records = await requestResult(
+    transaction.objectStore('signaturePacks').getAll() as IDBRequest<StoredSignaturePack[]>,
+    'Could not read saved signature packs',
+  );
+
+  return records.map((record) => ({
+    id: record.id,
+    name: record.name,
+    signatures: record.signatures.map((buffer) => new Blob([buffer], { type: 'image/png' })),
+    initials: record.initials.map((buffer) => new Blob([buffer], { type: 'image/png' })),
+  }));
+};
+
+export const writeSignaturePack = async (database: IDBDatabase, pack: SignaturePack) => {
+  const record: StoredSignaturePack = {
+    id: pack.id,
+    name: pack.name,
+    signatures: await Promise.all(pack.signatures.map((blob) => blob.arrayBuffer())),
+    initials: await Promise.all(pack.initials.map((blob) => blob.arrayBuffer())),
+  };
+  const transaction = database.transaction('signaturePacks', 'readwrite');
+  transaction.objectStore('signaturePacks').put(record);
+  await transactionDone(transaction, 'Could not save signature pack');
+};
+
+export const createSignaturePackAndSelect = async (database: IDBDatabase, pack: SignaturePack) => {
+  const record: StoredSignaturePack = {
+    id: pack.id,
+    name: pack.name,
+    signatures: await Promise.all(pack.signatures.map((blob) => blob.arrayBuffer())),
+    initials: await Promise.all(pack.initials.map((blob) => blob.arrayBuffer())),
+  };
+  const transaction = database.transaction(['signaturePacks', 'settings'], 'readwrite');
+  transaction.objectStore('signaturePacks').add(record);
+  transaction.objectStore('settings').put(pack.id, ACTIVE_PACK_SETTING);
+  await transactionDone(transaction, 'Could not create signature pack');
+};
+
+export const writeSignaturePackName = async (database: IDBDatabase, packId: string, name: string) => {
+  const transaction = database.transaction('signaturePacks', 'readwrite');
+  const store = transaction.objectStore('signaturePacks');
+  const record = await requestResult(
+    store.get(packId) as IDBRequest<StoredSignaturePack | undefined>,
+    'Could not rename signature pack',
+  );
+  if (!record) {
+    transaction.abort();
+    throw new Error('Could not find signature pack to rename');
+  }
+  store.put({ ...record, name } satisfies StoredSignaturePack);
+  await transactionDone(transaction, 'Could not rename signature pack');
+};
+
+export const readActiveSignaturePackId = async (database: IDBDatabase) => {
+  const transaction = database.transaction('settings', 'readonly');
+  const result = await requestResult(
+    transaction.objectStore('settings').get(ACTIVE_PACK_SETTING) as IDBRequest<string | undefined>,
+    'Could not read the active signature pack',
+  );
+  return result ?? null;
+};
+
+export const writeActiveSignaturePackId = async (database: IDBDatabase, packId: string) => {
+  const transaction = database.transaction('settings', 'readwrite');
+  transaction.objectStore('settings').put(packId, ACTIVE_PACK_SETTING);
+  await transactionDone(transaction, 'Could not save the active signature pack');
+};
+
+export const deleteSignaturePackAndSelect = async (database: IDBDatabase, packId: string, nextPackId: string) => {
+  const transaction = database.transaction(['signaturePacks', 'settings'], 'readwrite');
+  transaction.objectStore('signaturePacks').delete(packId);
+  transaction.objectStore('settings').put(nextPackId, ACTIVE_PACK_SETTING);
+  await transactionDone(transaction, 'Could not delete signature pack');
+};
 
 // https://stackoverflow.com/a/2450976
 export const shuffle = <T,>(originalArray: T[]): T[] => {
@@ -84,22 +198,3 @@ export const shuffle = <T,>(originalArray: T[]): T[] => {
 
   return array;
 };
-
-export const arrayBufferToBlob = (arrayBuffer: ArrayBuffer, mimeType: string) =>
-  new Blob([arrayBuffer], { type: mimeType });
-
-export const blobToArrayBuffer = async (blob: Blob): Promise<ArrayBuffer> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener('loadend', () => {
-      if (reader.result && reader.result instanceof ArrayBuffer) {
-        resolve(reader.result);
-      } else {
-        reject(new Error('Could not read file'));
-      }
-    });
-    reader.addEventListener('error', () => {
-      reject(new Error('Could not read file'));
-    });
-    reader.readAsArrayBuffer(blob);
-  });
