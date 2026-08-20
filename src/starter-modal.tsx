@@ -438,7 +438,7 @@ const StarterModal = ({
       onRequestClose={closeModal}
       contentLabel="Welcome Modal"
       overlayClassName="fixed inset-0 bg-slate-800 bg-opacity-75 transition-opacity duration-500 opacity-0"
-      className="absolute left-1/2 top-1/2 isolate flex max-h-[95vh] min-h-[28rem] w-[90vw] -translate-x-1/2 -translate-y-1/2 transform overflow-auto rounded-2xl border border-black/10 bg-slate-800 bg-clip-padding shadow-2xl outline-none lg:w-[54rem]"
+      className="absolute left-1/2 top-1/2 isolate flex max-h-[95vh] min-h-[28rem] w-[90vw] -translate-x-1/2 -translate-y-1/2 transform overflow-auto rounded-2xl bg-transparent shadow-2xl outline-none lg:w-[54rem]"
       closeTimeoutMS={500}
     >
       <aside className="flex w-56 shrink-0 flex-col bg-violet-700 lg:w-64">
@@ -588,10 +588,6 @@ const StarterModal = ({
           </button>
         </div>
       </div>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 z-10 rounded-2xl ring-1 ring-inset ring-black/20"
-      />
     </Modal>
   );
 };
